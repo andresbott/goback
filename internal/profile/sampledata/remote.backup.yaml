@@ -1,0 +1,22 @@
+---
+
+name: remote
+
+remote:
+  type: sshPassword
+  url: bla.ble.com:22
+  path: /backup/out
+  user: user
+  password: bla
+  privateKey: privKey
+  passPhrase: pass
+
+dirs:
+  - root: relative
+    exclude:
+      - "*.log"
+
+destination: /backups
+keep: 3
+owner : "ble"
+mode : "0700"

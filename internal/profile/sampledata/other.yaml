@@ -1,0 +1,12 @@
+---
+
+## not loaded: this file should not be loaded by profile discovery
+name: wrong
+dirs:
+  - root: /wrong
+    followsymlinks: false
+mysql:
+  - dbname: wrong
+    user: user
+    pw: pw
+destination: /wrong

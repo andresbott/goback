@@ -1,0 +1,23 @@
+---
+
+name: test
+dirs:
+  - root: /bla
+    followsymlinks: false
+    exclude:
+      - "*.log"
+
+  - root: /ble
+    followsymlinks: true
+    exclude:
+      - "*.logs"
+
+mysql:
+  - dbname: dbname
+    user: user
+    pw: pw
+
+destination: /backups
+keep: 3
+owner : "ble"
+mode : "0700"
