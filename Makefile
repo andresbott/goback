@@ -24,7 +24,7 @@ benchmark: ## run go benchmarks
 build: ## builds a snapshot build using goreleaser
 	@goreleaser --snapshot --rm-dist
 
-release:  ## release a new version of goback
+release: verify ## release a new version of goback
 	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -a $(version) -m "Release version: $(version)"
