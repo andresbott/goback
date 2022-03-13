@@ -18,6 +18,7 @@ import (
 )
 
 func TestPullProfiles(t *testing.T) {
+	skipIfCi(t) // skip test if running in CI
 
 	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
