@@ -24,13 +24,14 @@ benchmark: ## run go benchmarks
 build: ## builds a snapshot build using goreleaser
 	@goreleaser --snapshot --rm-dist
 
+release:  ## release a new version of goback
+	@git diff --quiet || echo 'git is in dirty state' && exit 1
+	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
+	@git tag -a $(version) -m "Release version: $(version)"
+	@git push origin $(version)
+	@goreleaser --rm-dist
+
 
 help: ## help command
 	@egrep '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST)  | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
-
-
-docker-e2e: ## run end to end tests in a docker container
-	@docker build -t goback-test-$(COMMIT_SHA_SHORT) -f zarf/docker/DockerFile .
-	@docker run -e MARIADB_ROOT_PASSWORD=admin E2E_TEST=true goback-test-$(COMMIT_SHA_SHORT) go test -v app/e2e/e2e_test.go
-
 
