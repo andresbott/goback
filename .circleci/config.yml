@@ -8,6 +8,8 @@ jobs:
   test:
     docker:
       - image: cimg/go:1.17
+    environment:
+      SKIP_CI_TEST: "true"
     steps:
       - checkout
       - run:
