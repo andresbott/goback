@@ -12,6 +12,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func skipIfCi(t *testing.T) {
+	skip := os.Getenv("SKIP_CI_TEST")
+	if skip == "true" {
+		t.Skip("skipping because env \"SKIP_CI_TEST\"  is set to true")
+	}
+}
+
 func TestDumpDb(t *testing.T) {
 
 	setup := func(t *testing.T) (string, *zipHandler.Handler, func(t *testing.T)) {
@@ -77,8 +84,9 @@ func TestDumpDb(t *testing.T) {
 }
 
 func TestDumpSshDb(t *testing.T) {
-	ctx := context.Background()
+	skipIfCi(t) // skip test if running in CI
 
+	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
 	if err != nil {
 		t.Fatal(err)

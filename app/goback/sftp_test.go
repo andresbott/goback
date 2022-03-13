@@ -18,6 +18,7 @@ import (
 )
 
 func TestPullProfiles(t *testing.T) {
+	skipIfCi(t) // skip test if running in CI
 
 	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
@@ -291,8 +292,9 @@ func TestSFTP(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
+	skipIfCi(t) // skip test if running in CI
 
+	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
 	if err != nil {
 		t.Fatal(err)
