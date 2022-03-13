@@ -3,7 +3,7 @@ package goback
 import (
 	"errors"
 	"fmt"
-	"git.andresbott.com/Golang/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/ssh"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"git.andresbott.com/Golang/goback/internal/profile"
+	"github.com/AndresBott/goback/internal/profile"
 )
 
 // date string used to format the backup profiles

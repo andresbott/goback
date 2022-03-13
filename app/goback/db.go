@@ -2,10 +2,10 @@ package goback
 
 import (
 	"fmt"
-	"git.andresbott.com/Golang/goback/internal/profile"
-	"git.andresbott.com/Golang/goback/lib/mysqldump"
-	"git.andresbott.com/Golang/goback/lib/ssh"
-	"git.andresbott.com/Golang/goback/lib/zip"
+	"github.com/AndresBott/goback/internal/profile"
+	"github.com/AndresBott/goback/lib/mysqldump"
+	"github.com/AndresBott/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/zip"
 	"path/filepath"
 )
 

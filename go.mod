@@ -1,4 +1,4 @@
-module git.andresbott.com/Golang/goback
+module github.com/AndresBott/goback
 
 go 1.17
 

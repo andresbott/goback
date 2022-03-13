@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"git.andresbott.com/Golang/goback/internal/profile"
-	"git.andresbott.com/Golang/goback/lib/ssh"
-	"git.andresbott.com/Golang/goback/lib/zip"
+	"github.com/AndresBott/goback/internal/profile"
+	"github.com/AndresBott/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/zip"
 	"github.com/gobwas/glob"
 	"github.com/pkg/sftp"
 )

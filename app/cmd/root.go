@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"git.andresbott.com/Golang/goback/app/goback"
-	"git.andresbott.com/Golang/goback/internal/profile"
+	"github.com/AndresBott/goback/app/goback"
+	"github.com/AndresBott/goback/internal/profile"
 	"github.com/spf13/cobra"
 	"os"
 	"runtime"

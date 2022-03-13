@@ -2,7 +2,7 @@ package goback
 
 import (
 	"fmt"
-	"git.andresbott.com/Golang/goback/internal/profile"
+	"github.com/AndresBott/goback/internal/profile"
 	"net/smtp"
 	"strings"
 )

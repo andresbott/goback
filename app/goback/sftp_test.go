@@ -2,8 +2,6 @@ package goback
 
 import (
 	"context"
-	"git.andresbott.com/Golang/goback/internal/profile"
-	"git.andresbott.com/Golang/goback/lib/ssh"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AndresBott/goback/internal/profile"
+	"github.com/AndresBott/goback/lib/ssh"
 	"github.com/gobwas/glob"
 	"github.com/google/go-cmp/cmp"
 	"github.com/testcontainers/testcontainers-go"

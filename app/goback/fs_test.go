@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.andresbott.com/Golang/goback/internal/profile"
+	"github.com/AndresBott/goback/internal/profile"
 	"github.com/gobwas/glob"
 	"github.com/google/go-cmp/cmp"
 )

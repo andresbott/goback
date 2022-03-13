@@ -2,13 +2,13 @@ package goback
 
 import (
 	"context"
-	"git.andresbott.com/Golang/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/ssh"
 	"log"
 	"os"
 	"testing"
 
-	"git.andresbott.com/Golang/goback/internal/profile"
-	zipHandler "git.andresbott.com/Golang/goback/lib/zip"
+	"github.com/AndresBott/goback/internal/profile"
+	zipHandler "github.com/AndresBott/goback/lib/zip"
 	"github.com/google/go-cmp/cmp"
 )
 

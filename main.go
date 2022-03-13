@@ -1,6 +1,8 @@
 package main
 
-import "git.andresbott.com/Golang/goback/app/cmd"
+import (
+	"github.com/AndresBott/goback/app/cmd"
+)
 
 func main() {
 	cmd.Execute()

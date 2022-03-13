@@ -3,11 +3,11 @@ package goback
 import (
 	"errors"
 	"fmt"
-	"git.andresbott.com/Golang/goback/lib/zip"
+	"github.com/AndresBott/goback/lib/zip"
 	"os"
 	"path/filepath"
 
-	"git.andresbott.com/Golang/goback/internal/profile"
+	"github.com/AndresBott/goback/internal/profile"
 )
 
 func backupLocalFs(dirs []profile.BackupDir, dbs []profile.MysqlBackup, dest string) error {
