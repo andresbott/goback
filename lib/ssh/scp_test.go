@@ -10,10 +10,11 @@ import (
 )
 
 func TestScpActions(t *testing.T) {
+	skipIfCi(t) // skip test if running in CI
+
 	// in order to minimize the start/stop time of testconainers we run one setup and every subsequent test
 	// us executed as a sub tests
 	ctx := context.Background()
-
 	sshServer, err := setupContainer(ctx)
 	if err != nil {
 		t.Fatal(err)

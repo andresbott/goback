@@ -11,6 +11,13 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
+func skipIfCi(t *testing.T) {
+	skip := os.Getenv("SKIP_CI_TEST")
+	if skip == "true" {
+		t.Skip("skipping because env \"SKIP_CI_TEST\"  is set to true")
+	}
+}
+
 type sshContainer struct {
 	testcontainers.Container
 	host string
@@ -71,8 +78,9 @@ func setupContainer(ctx context.Context) (*sshContainer, error) {
 }
 
 func TestSshConnect(t *testing.T) {
-	ctx := context.Background()
+	skipIfCi(t) // skip test if running in CI
 
+	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
 	if err != nil {
 		t.Fatal(err)
