@@ -62,27 +62,28 @@ func (br *BackupRunner) Run() error {
 	for _, prfl := range br.profiles {
 
 		// handle copying of files
-
 		br.Printer.Print(fmt.Sprintf("Running backup for profile: \"%s\"", prfl.Name))
 		br.Printer.AddIndent()
-		start := time.Now()
+		if len(prfl.Dirs) > 0 || len(prfl.Mysql) > 0 {
+			start := time.Now()
 
-		var err error
-		err = br.BackupProfile(prfl)
-		if err != nil {
-			if prfl.Notify {
-				// ignore notification error
-				_ = NotifyFailure(prfl.NotifyCfg, err)
+			var err error
+			err = br.BackupProfile(prfl)
+			if err != nil {
+				if prfl.Notify {
+					// ignore notification error
+					_ = NotifyFailure(prfl.NotifyCfg, err)
+				}
+				capturedErrs = true
+				br.Printer.Print(fmt.Sprintf("[X] Error in backup of profile \"" + prfl.Name + "\": " + err.Error()))
+				br.Printer.RemIndent()
+				continue
 			}
-			capturedErrs = true
-			br.Printer.Print(fmt.Sprintf("[X] Error in backup of profile \"" + prfl.Name + "\": " + err.Error()))
-			br.Printer.RemIndent()
-			continue
-		}
 
-		t := time.Now()
-		elapsed := t.Sub(start)
-		br.Printer.Print(fmt.Sprintf("Backup took: \"%s\"", elapsed.String()))
+			t := time.Now()
+			elapsed := t.Sub(start)
+			br.Printer.Print(fmt.Sprintf("Backup took: \"%s\"", elapsed.String()))
+		}
 		br.Printer.RemIndent()
 
 		// delete old backup files
@@ -90,7 +91,7 @@ func (br *BackupRunner) Run() error {
 		br.Printer.Print(fmt.Sprintf("Deleting older backups for profile: \"%s\"", prfl.Name))
 		br.Printer.AddIndent()
 
-		err = br.ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
+		err := br.ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
 		if err != nil {
 			if prfl.Notify {
 				// ignore notification error
@@ -103,25 +104,27 @@ func (br *BackupRunner) Run() error {
 		}
 		br.Printer.RemIndent()
 
-		br.Printer.Print(fmt.Sprintf("Running sync of backups for profile: \"%s\"", prfl.Name))
-		br.Printer.AddIndent()
-		start2 := time.Now()
-		err = br.SyncBackupsProfile(prfl)
-		if err != nil {
-			if prfl.Notify {
-				// ignore notification error
-				_ = NotifyFailure(prfl.NotifyCfg, err)
+		if prfl.SyncBackup.RemotePath != "" {
+			br.Printer.Print(fmt.Sprintf("Running sync of backups for profile: \"%s\"", prfl.Name))
+			br.Printer.AddIndent()
+			start2 := time.Now()
+			err = br.SyncBackupsProfile(prfl)
+			if err != nil {
+				if prfl.Notify {
+					// ignore notification error
+					_ = NotifyFailure(prfl.NotifyCfg, err)
+				}
+				capturedErrs = true
+				br.Printer.Print(fmt.Sprintf("[X] Error syncing backups files for profile \"" + prfl.Name + "\": " + err.Error()))
+				br.Printer.RemIndent()
+				continue
 			}
-			capturedErrs = true
-			br.Printer.Print(fmt.Sprintf("[X] Error syncing backups files for profile \"" + prfl.Name + "\": " + err.Error()))
 			br.Printer.RemIndent()
-			continue
+			t2 := time.Now()
+			elapsed2 := t2.Sub(start2)
+			br.Printer.Print(fmt.Sprintf("Sync took: \"%s\"", elapsed2.String()))
+			br.Printer.RemIndent()
 		}
-		br.Printer.RemIndent()
-		t2 := time.Now()
-		elapsed2 := t2.Sub(start2)
-		br.Printer.Print(fmt.Sprintf("Sync took: \"%s\"", elapsed2.String()))
-		br.Printer.RemIndent()
 
 		if prfl.Notify {
 			_ = NotifySuccess(prfl.NotifyCfg)

@@ -137,6 +137,10 @@ func LoadProfile(file string) (Profile, error) {
 		if t != Password && t != PrivateKey && t != SshAgent {
 			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
 		}
+		if p.Remote.Host == "" {
+			return Profile{}, fmt.Errorf("remote host cannot be empty")
+		}
+
 		ret.Remote = p.Remote
 		ret.IsRemote = true
 
