@@ -10,6 +10,7 @@ fmt: ## format go code and run mod tidy
 	@go fmt ./...
 	@go mod tidy
 
+.PHONY: test
 test: ## run go tests
 	@go test ./... -v -cover
 

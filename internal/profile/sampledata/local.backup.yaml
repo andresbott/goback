@@ -1,6 +1,7 @@
 ---
 
 name: test
+
 dirs:
   - root: /bla
     followsymlinks: false

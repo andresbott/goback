@@ -31,15 +31,11 @@ type Cfg struct {
 }
 
 type Client struct {
-	config *ssh.ClientConfig
-	server string
-	conn   *ssh.Client
+	config    *ssh.ClientConfig
+	server    string
+	conn      *ssh.Client
+	agentConn net.Conn
 }
-
-const (
-	knownHostsFile    = "~/.ssh/known_hosts"
-	DefaultPrivateKey = "~/.ssh/id_rsa"
-)
 
 func New(cfg Cfg) (*Client, error) {
 
@@ -48,6 +44,7 @@ func New(cfg Cfg) (*Client, error) {
 	}
 
 	var authMethod []ssh.AuthMethod
+	var sshAgentConnection net.Conn
 
 	switch cfg.Auth {
 	// => Password authentication
@@ -78,17 +75,14 @@ func New(cfg Cfg) (*Client, error) {
 
 	// => private key in ssh agent
 	case SshAgent:
-		keys, err := sshAgentKeys()
+		signers, sshAgCon, err := sshAgentSigners()
 		if err != nil {
 			return nil, fmt.Errorf("unable to get keys from ssh agent: %v", err)
 		}
+		sshAgentConnection = *sshAgCon
 
-		for _, k := range keys {
-			signer, err := ssh.ParsePrivateKey(k.Blob)
-			if err != nil {
-				return nil, fmt.Errorf("unable to parse private key: %v", err)
-			}
-			authMethod = append(authMethod, ssh.PublicKeys(signer))
+		for _, s := range signers {
+			authMethod = append(authMethod, ssh.PublicKeys(s))
 		}
 
 	default:
@@ -101,7 +95,17 @@ func New(cfg Cfg) (*Client, error) {
 			return nil
 		}
 	} else {
-		fn, err := knownhosts.New(knownHostsFile)
+
+		userHome, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("getting users home dir: %v", err)
+		}
+
+		knownHostsAbsFile, err := filepath.Abs(filepath.Join(userHome, ".ssh/known_hosts"))
+		if err != nil {
+			return nil, fmt.Errorf("absolute path for known_hosts file: %v", err)
+		}
+		fn, err := knownhosts.New(knownHostsAbsFile)
 		if err != nil {
 			return nil, fmt.Errorf("error checking known_hosts: %v", err)
 		}
@@ -115,8 +119,9 @@ func New(cfg Cfg) (*Client, error) {
 	}
 
 	client := &Client{
-		config: config,
-		server: fmt.Sprintf("%v:%v", cfg.Host, cfg.Port),
+		config:    config,
+		server:    fmt.Sprintf("%v:%v", cfg.Host, cfg.Port),
+		agentConn: sshAgentConnection,
 	}
 	return client, nil
 }
@@ -127,7 +132,16 @@ func readKey(path string) ([]byte, error) {
 	var err error
 	var pemBytes []byte
 
-	keyFile := DefaultPrivateKey
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("getting users home dir: %v", err)
+	}
+
+	keyFile, err := filepath.Abs(filepath.Join(userHome, ".ssh/id_rsa"))
+	if err != nil {
+		return nil, fmt.Errorf("absolute path for default id_rsa file: %v", err)
+	}
+
 	if path != "" {
 		keyFile = path
 	}
@@ -153,24 +167,24 @@ func readKey(path string) ([]byte, error) {
 }
 
 // sshAgentKeys will try to connect to the the current ssh agent and retrieve the keys from there
-func sshAgentKeys() ([]*agent.Key, error) {
+func sshAgentSigners() ([]ssh.Signer, *net.Conn, error) {
 	sshAuthSock := os.Getenv("SSH_AUTH_SOCK")
 	if sshAuthSock == "" {
-		return nil, errors.New("env variable SSH_AUTH_SOCK is not set or ssh agent not running")
+		return nil, nil, errors.New("env variable SSH_AUTH_SOCK is not set or ssh agent not running")
 	}
 
 	conn, err := net.Dial("unix", sshAuthSock)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to ssh agent: %v", err)
+		return nil, nil, fmt.Errorf("unable to connect to ssh agent: %v", err)
 	}
-	defer conn.Close()
 
 	sshAgentClient := agent.NewClient(conn)
-	loadedKeys, err := sshAgentClient.List()
+
+	signers, err := sshAgentClient.Signers()
 	if err != nil {
-		return nil, fmt.Errorf("error listing keys: %s", err)
+		return nil, nil, fmt.Errorf("error getting ssh signers from agent: %s", err)
 	}
-	return loadedKeys, err
+	return signers, &conn, err
 }
 
 func (scpc *Client) Connect() error {
@@ -202,7 +216,10 @@ func GetAuthType(in string) AuthType {
 }
 
 func (scpc *Client) Disconnect() error {
-	//s.scpClient.Close()
+	if scpc.agentConn != nil {
+		scpc.agentConn.Close()
+
+	}
 
 	err := scpc.conn.Close()
 	scpc.conn = nil

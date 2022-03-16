@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/AndresBott/goback/app/goback"
+	"github.com/AndresBott/goback/internal/clilog"
 	"github.com/AndresBott/goback/internal/profile"
 	"github.com/spf13/cobra"
 	"os"
@@ -34,8 +35,18 @@ func newRootCommand() *cobra.Command {
 	dirflag := ""
 	generateflag := false
 	version := false
+	quiet := false
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+
+		printer := clilog.CliOut{
+			Quiet:  quiet,
+			Prefix: "-> ",
+		}
+		runner := goback.BackupRunner{
+			Printer: printer,
+		}
+
 		if version {
 			fmt.Printf("Version: %s\n", Version)
 			fmt.Printf("Build date: %s\n", BuildTime)
@@ -44,11 +55,32 @@ func newRootCommand() *cobra.Command {
 
 			return nil
 		} else if profileFlag != "" {
-			// handle single profile file
-			return goback.ExecuteSingleProfile(profileFlag)
+			// handle a single profile
+			err := runner.LoadProfile(profileFlag)
+			if err != nil {
+				return err
+			}
+
+			err = runner.Run()
+			if err != nil {
+				return err
+			}
+
+			return nil
+
 		} else if dirflag != "" {
 			// handle a directory containing profiles
-			return goback.ExecuteMultiProfile(dirflag)
+			err := runner.LoadProfiles(dirflag)
+			if err != nil {
+				return err
+			}
+
+			err = runner.Run()
+			if err != nil {
+				return err
+			}
+
+			return nil
 		} else if generateflag {
 			// print the profile boilerplate to stdout
 			fmt.Println(profile.Boilerplate())
@@ -64,6 +96,7 @@ func newRootCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&dirflag, "dir", "d", "", "directory containing multiple profiles")
 	cmd.Flags().BoolVarP(&generateflag, "generate", "g", false, "print a profile boilerplate")
 	cmd.Flags().BoolVarP(&version, "version", "v", false, "print version and build information")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "do not print output")
 
 	cmd.SilenceUsage = true
 	cmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {

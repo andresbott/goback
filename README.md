@@ -4,6 +4,7 @@
 
 ## roadmap
 
+* separete profile settings for remote dir back from remote sync 
 * backup git repositories
   
 * improve cli output

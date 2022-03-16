@@ -13,7 +13,7 @@ import (
 )
 
 // ExpurgeDir deletes all the older backups keeping N older versions of a specific backup profile name
-func ExpurgeDir(path string, keepN int, name string) error {
+func (br *BackupRunner) ExpurgeDir(path string, keepN int, name string) error {
 
 	pathInfo, err := os.Stat(path)
 	if err != nil {
@@ -43,6 +43,7 @@ func ExpurgeDir(path string, keepN int, name string) error {
 	}
 
 	for _, file := range filesToDelete {
+		br.Printer.Print(fmt.Sprintf("Deleting old backup: \"%s\"", file))
 		e := os.Remove(filepath.Join(path, file))
 		if e != nil {
 			return fmt.Errorf("unable to delete old zip file: %v", e)
@@ -52,6 +53,11 @@ func ExpurgeDir(path string, keepN int, name string) error {
 }
 
 func findToDelete(files []string, profileName string, n int) ([]string, error) {
+
+	// for values <= 0 do not delete
+	if n <= 0 {
+		return []string{}, nil
+	}
 
 	if profileName == "" {
 		return nil, errors.New("profile name cannot be empty")

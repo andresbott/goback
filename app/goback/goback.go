@@ -3,105 +3,195 @@ package goback
 import (
 	"errors"
 	"fmt"
+	"github.com/AndresBott/goback/internal/clilog"
 	"github.com/AndresBott/goback/lib/ssh"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/AndresBott/goback/internal/profile"
 )
 
+type Printer interface {
+	Print(msg string)
+}
+
 // date string used to format the backup profiles
 // resulting profiles will be <name>_2006_02_01-15:04:05_backup.zip
 const dateStr = "2006_02_01-15:04:05"
 
-//ExecuteSingleProfile runs all the profile actions on a single profile file
-func ExecuteSingleProfile(flag string) error {
-	prfl, err := profile.LoadProfile(flag)
-	if err != nil {
-		return err
-	}
+// BackupRunner is the entry point to the application
+type BackupRunner struct {
+	Printer  clilog.CliOut
+	profiles []profile.Profile
+}
 
-	err = BackupProfile(prfl)
-	if err != nil {
-		if prfl.Notify {
-			// ignore notification error
-			_ = NotifyFailure(prfl.NotifyCfg, err)
-		}
-		return err
-	}
+// LoadProfile adds a single profile file to the list of profiles to be executed
+func (br *BackupRunner) LoadProfile(file string) error {
 
-	// delete old backup files
-	err = ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
+	br.Printer.Print(fmt.Sprintf("Loading profile from file: \"%s\"", file))
+
+	prfl, err := profile.LoadProfile(file)
 	if err != nil {
-		if prfl.Notify {
-			// ignore notification error
-			_ = NotifyFailure(prfl.NotifyCfg, err)
-		}
 		return err
 	}
-	if prfl.Notify {
-		_ = NotifySuccess(prfl.NotifyCfg)
-	}
+	br.profiles = append(br.profiles, prfl)
 	return nil
 }
 
-// ExecuteMultiProfile runs all the profile actions on all the backup profile files found in a directory
-func ExecuteMultiProfile(flag string) error {
-	profiles, err := profile.LoadProfiles(flag)
+// LoadProfiles adds all the profiles found in the directory to the list of profiles to be executed
+func (br *BackupRunner) LoadProfiles(dir string) error {
+
+	br.Printer.Print(fmt.Sprintf("Loading profiles from dorectory: \"%s\"", dir))
+
+	prfl, err := profile.LoadProfiles(dir)
 	if err != nil {
 		return err
 	}
+	br.profiles = append(br.profiles, prfl...)
+	return nil
+}
 
-	failedProfiles := []string{}
-	failedDeletes := []string{}
-	for _, prfl := range profiles {
-		err = BackupProfile(prfl)
+// Run executes all the profiles loaded
+func (br *BackupRunner) Run() error {
+
+	capturedErrs := false
+
+	for _, prfl := range br.profiles {
+
+		// handle copying of files
+
+		br.Printer.Print(fmt.Sprintf("Running backup for profile: \"%s\"", prfl.Name))
+		br.Printer.AddIndent()
+		start := time.Now()
+
+		var err error
+		err = br.BackupProfile(prfl)
 		if err != nil {
 			if prfl.Notify {
 				// ignore notification error
 				_ = NotifyFailure(prfl.NotifyCfg, err)
 			}
-			failedProfiles = append(failedProfiles, prfl.Name+":"+err.Error())
+			capturedErrs = true
+			br.Printer.Print(fmt.Sprintf("[X] Error in backup of profile \"" + prfl.Name + "\": " + err.Error()))
+			br.Printer.RemIndent()
+			continue
 		}
+
+		t := time.Now()
+		elapsed := t.Sub(start)
+		br.Printer.Print(fmt.Sprintf("Backup took: \"%s\"", elapsed.String()))
+		br.Printer.RemIndent()
 
 		// delete old backup files
-		err = ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
+
+		br.Printer.Print(fmt.Sprintf("Deleting older backups for profile: \"%s\"", prfl.Name))
+		br.Printer.AddIndent()
+
+		err = br.ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
 		if err != nil {
 			if prfl.Notify {
 				// ignore notification error
 				_ = NotifyFailure(prfl.NotifyCfg, err)
 			}
-			failedDeletes = append(failedDeletes, prfl.Name+":"+err.Error())
+			capturedErrs = true
+			br.Printer.Print(fmt.Sprintf("[X] Error deleting files for profile \"" + prfl.Name + "\": " + err.Error()))
+			br.Printer.RemIndent()
+			continue
 		}
+		br.Printer.RemIndent()
+
+		br.Printer.Print(fmt.Sprintf("Running sync of backups for profile: \"%s\"", prfl.Name))
+		br.Printer.AddIndent()
+		start2 := time.Now()
+		err = br.SyncBackupsProfile(prfl)
+		if err != nil {
+			if prfl.Notify {
+				// ignore notification error
+				_ = NotifyFailure(prfl.NotifyCfg, err)
+			}
+			capturedErrs = true
+			br.Printer.Print(fmt.Sprintf("[X] Error syncing backups files for profile \"" + prfl.Name + "\": " + err.Error()))
+			br.Printer.RemIndent()
+			continue
+		}
+		br.Printer.RemIndent()
+		t2 := time.Now()
+		elapsed2 := t2.Sub(start2)
+		br.Printer.Print(fmt.Sprintf("Sync took: \"%s\"", elapsed2.String()))
+		br.Printer.RemIndent()
+
 		if prfl.Notify {
 			_ = NotifySuccess(prfl.NotifyCfg)
 		}
 	}
 
-	if len(failedProfiles) > 0 || len(failedDeletes) > 0 {
-		msg := "errors while processing profiles:"
-		if len(failedProfiles) > 0 {
-			msg = msg + "backup profiles: " + strings.Join(failedProfiles, ",")
-		}
-		if len(failedDeletes) > 0 {
-			msg = msg + "delete files: " + strings.Join(failedDeletes, ",")
-		}
-		return errors.New(msg)
+	if capturedErrs {
+		return errors.New("at least one profile execution was not successful")
+	}
+	return nil
+}
+
+// SyncBackupsProfile takes a remote (sftp) location from the profile and donwloads remote backups fiels
+// to the local location
+func (br BackupRunner) SyncBackupsProfile(prfl profile.Profile) error {
+	// check if destination dir exists
+	fInfo, err := os.Stat(prfl.Destination)
+	if err != nil {
+		return fmt.Errorf("destination not found: %v", err)
+	}
+	if !fInfo.IsDir() {
+		return errors.New("the output path is not a directory")
+	}
+
+	// handle file backup
+	if !prfl.IsRemote {
+		return errors.New("sync backups only works with remote location enabled")
+	}
+
+	port, err := strconv.Atoi(prfl.Remote.Port)
+	if err != nil {
+		return fmt.Errorf("error parsisng port: %v", err)
+	}
+
+	sshC, err := ssh.New(ssh.Cfg{
+		Host:          prfl.Remote.Host,
+		Port:          port,
+		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
+		User:          prfl.Remote.User,
+		Password:      prfl.Remote.Password,
+		PrivateKey:    prfl.Remote.PrivateKey,
+		PassPhrase:    prfl.Remote.PassPhrase,
+		IgnoreHostKey: false, // no need to expose this for the moment
+	})
+
+	if err != nil {
+		return fmt.Errorf("error creating ssh client: %v", err)
+	}
+	err = sshC.Connect()
+	if err != nil {
+		return fmt.Errorf("error connecting ssh: %v", err)
+	}
+	defer func() {
+		_ = sshC.Disconnect()
+	}()
+
+	err = syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
+	if err != nil {
+		return fmt.Errorf("error running sftp backup profile: %v", err)
 	}
 	return nil
 }
 
 // BackupProfile takes a single profile as input and generates a single Zip backup as output
-func BackupProfile(prfl profile.Profile) error {
-
+// the sources of backup can be either local fs or sftp connection
+func (br BackupRunner) BackupProfile(prfl profile.Profile) error {
 	// check if destination dir exists
 	fInfo, err := os.Stat(prfl.Destination)
 	if err != nil {
-		return fmt.Errorf("destination not found:%v", err)
+		return fmt.Errorf("destination not found: %v", err)
 	}
 	if !fInfo.IsDir() {
 		return errors.New("the output path is not a directory")
@@ -109,11 +199,12 @@ func BackupProfile(prfl profile.Profile) error {
 
 	dest := filepath.Join(prfl.Destination, getZipName(prfl.Name))
 
+	// handle file backup
 	if prfl.IsRemote {
 
-		port, err := strconv.Atoi(prfl.Remote.Host)
+		port, err := strconv.Atoi(prfl.Remote.Port)
 		if err != nil {
-			return fmt.Errorf("error parsisn port: %v", err)
+			return fmt.Errorf("error parsisng port: %v", err)
 		}
 
 		sshC, err := ssh.New(ssh.Cfg{
@@ -124,11 +215,11 @@ func BackupProfile(prfl profile.Profile) error {
 			Password:      prfl.Remote.Password,
 			PrivateKey:    prfl.Remote.PrivateKey,
 			PassPhrase:    prfl.Remote.PassPhrase,
-			IgnoreHostKey: false, // no need to expose that for the moment
+			IgnoreHostKey: false, // no need to expose this for the moment
 		})
 
 		if err != nil {
-			return fmt.Errorf("error createing ssh client: %v", err)
+			return fmt.Errorf("error creating ssh client: %v", err)
 		}
 		err = sshC.Connect()
 		if err != nil {
@@ -138,22 +229,14 @@ func BackupProfile(prfl profile.Profile) error {
 			_ = sshC.Disconnect()
 		}()
 
-		switch prfl.Remote.RemoteType {
-		case profile.SftpSync:
-			err = SyncBackups(sshC, prfl.Remote.Path, dest, prfl.Name)
-			if err != nil {
-				return fmt.Errorf("error running sftp profile: %v", err)
-			}
-		case profile.SshAgent, profile.Password, profile.PrivateKey:
-			err = backupSftp(sshC, prfl.Dirs, prfl.Mysql, dest)
-			if err != nil {
-				return fmt.Errorf("error running sftp profile: %v", err)
-			}
-		default:
-			return fmt.Errorf("remote profile type %s is not valid", prfl.Remote.RemoteType)
+		br.Printer.Print(fmt.Sprintf("Copying data from remote server: \"%s\"", prfl.Remote.Host))
+		err = backupSftp(sshC, prfl.Dirs, prfl.Mysql, dest)
+		if err != nil {
+			return fmt.Errorf("error running sftp backup profile: %v", err)
 		}
 
 	} else {
+		br.Printer.Print(fmt.Sprintf("Copying local data"))
 		err := backupLocalFs(prfl.Dirs, prfl.Mysql, dest)
 		if err != nil {
 			return fmt.Errorf("error running local profile: %v", err)
@@ -213,12 +296,12 @@ func chown(file string, owner string) error {
 }
 
 func chmod(file string, mode string) error {
-	modeInt, err := strconv.Atoi(mode)
+	octal, err := strconv.ParseInt(mode, 8, 64)
 	if err != nil {
 		return fmt.Errorf("type conversion: %v", err)
 	}
 
-	err = os.Chmod(file, os.FileMode(modeInt))
+	err = os.Chmod(file, os.FileMode(octal))
 	if err != nil {
 		return fmt.Errorf("chmod failed: %v", err)
 	}
