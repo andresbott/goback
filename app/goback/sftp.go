@@ -16,7 +16,7 @@ import (
 
 // syncBackups will pull backup files from a remote location to a local one,
 // only downloading backups that are not present locally
-func syncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string, name string) error {
+func (br BackupRunner) syncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string, name string) error {
 
 	sftpc, err := sftp.NewClient(sshc.Connection())
 	if err != nil {
@@ -73,6 +73,7 @@ func syncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string,
 	diff := findDifferentProfiles(remoteFiles, localFile, name)
 
 	for _, f := range diff {
+		br.Printer.Print(fmt.Sprintf("Downloading file: %s", f))
 		err = sftpDownload(sftpc, filepath.Join(remoteOrigin, f), filepath.Join(localDestination, f))
 		if err != nil {
 			return fmt.Errorf("unable to donwload file: %s, %v", f, err)
