@@ -68,8 +68,7 @@ func (br *BackupRunner) Run() error {
 			if len(prfl.Dirs) > 0 || len(prfl.Mysql) > 0 {
 				start := time.Now()
 
-				var err error
-				err = br.BackupProfile(prfl)
+				err := br.BackupProfile(prfl)
 				if err != nil {
 					if prfl.Notify {
 						// ignore notification error
@@ -242,7 +241,7 @@ func (br BackupRunner) BackupProfile(prfl profile.Profile) error {
 		}
 
 	} else {
-		br.Printer.Print(fmt.Sprintf("Copying local data"))
+		br.Printer.Print("Copying local data")
 		err := backupLocalFs(prfl.Dirs, prfl.Mysql, dest)
 		if err != nil {
 			return fmt.Errorf("error running local profile: %v", err)
