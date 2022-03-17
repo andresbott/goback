@@ -236,11 +236,9 @@ func Boilerplate() string {
 # profile name used to identify different backup profiles
 name: myService
 
-# This are reusable remote configurations 
-remoteConfigs:
-	# the name is used to reference different remote configurations
-	name: remoteSsh
-    # the type of connection, currently valid: sshPassword | sshKey | sshAgent | sftpSync
+# use a remote connection to run goback
+remote:
+    # the type of connection, currently valid: sshPassword | sshKey | sshAgent 
     # if the type is set to sshAgent, get the ssh key from a running ssh agent
     type: sshPassword
 	#host/port of the server
@@ -270,11 +268,18 @@ mysql:
     user: user
     pw: pw
 
+# download backup files from a remote location to the local folder
+# this will only download files that do not yet exists locally
+# remote connection is mandatory for this to work
+syncBackups:
+  remotePath: "/bla"
+
 # this is the destination where the backup file will be written
 # only local filesystem is allowed
 destination: /backups
 
 # how many older backups to keep for this profile
+# this also affects the output of a synced directory
 keep: 3
 
 #change owner/mode of the generated file

@@ -2,13 +2,9 @@
 
 [![CircleCI](https://circleci.com/gh/AndresBott/goback/tree/main.svg?style=svg)](https://circleci.com/gh/AndresBott/goback/tree/main)
 
-## roadmap
+## Roadmap
 
-* separete profile settings for remote dir back from remote sync 
 * backup git repositories
-  
-* improve cli output
-* add -quite flag
 * write documentation
 
 ### Development
