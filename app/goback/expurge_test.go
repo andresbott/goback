@@ -38,7 +38,9 @@ func TestExpurgeDir(t *testing.T) {
 	createFile(filepath.Join(dir, "blib_2006_02_05-17:04:05_backup.zip"))
 	createFile(filepath.Join(dir, "name_2008_02_05-17:04:05_backup.zip"))
 
-	err := ExpurgeDir(dir, 1, "blib")
+	br := BackupRunner{}
+
+	err := br.ExpurgeDir(dir, 1, "blib")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

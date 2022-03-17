@@ -14,9 +14,9 @@ import (
 	"github.com/pkg/sftp"
 )
 
-// SyncBackups will pull backup files from a remote location to a local one,
+// syncBackups will pull backup files from a remote location to a local one,
 // only downloading backups that are not present locally
-func SyncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string, name string) error {
+func (br BackupRunner) syncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string, name string) error {
 
 	sftpc, err := sftp.NewClient(sshc.Connection())
 	if err != nil {
@@ -73,6 +73,7 @@ func SyncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string,
 	diff := findDifferentProfiles(remoteFiles, localFile, name)
 
 	for _, f := range diff {
+		br.Printer.Print(fmt.Sprintf("Downloading file: %s", f))
 		err = sftpDownload(sftpc, filepath.Join(remoteOrigin, f), filepath.Join(localDestination, f))
 		if err != nil {
 			return fmt.Errorf("unable to donwload file: %s, %v", f, err)
@@ -83,6 +84,7 @@ func SyncBackups(sshc *ssh.Client, remoteOrigin string, localDestination string,
 	return nil
 }
 
+// sftpDownload uses an sft client to download a remote file to a local destination
 func sftpDownload(sc *sftp.Client, remoteFile, localDest string) (err error) {
 
 	// Note: SFTP To Go doesn't support O_RDWR mode
@@ -172,16 +174,25 @@ func dumpSftp(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) error {
 	}
 	defer sftpc.Close()
 
+	rootDir := dir.Root
+	if !filepath.IsAbs(rootDir) {
+		wd, err := sftpc.Getwd()
+		if err != nil {
+			return fmt.Errorf("unable to get working dir %v", err)
+		}
+		rootDir = filepath.Join(wd, rootDir)
+	}
+
 	// check if dir exists
-	finfo, err := sftpc.Stat(dir.Root)
+	finfo, err := sftpc.Stat(rootDir)
 	if err != nil {
-		return fmt.Errorf("error checking dir %s, %v", dir.Root, err)
+		return fmt.Errorf("error checking dir %s, %v", rootDir, err)
 	}
 	if !finfo.IsDir() {
 		return errors.New("the path is not a directory")
 	}
 
-	w := sftpc.Walk(dir.Root)
+	w := sftpc.Walk(rootDir)
 
 OUTER:
 	for w.Step() {
@@ -203,19 +214,23 @@ OUTER:
 		}
 
 		// transform to absolute path
-		absPath, err := filepath.Abs(w.Path())
-		if err != nil {
-			return err
+		absPath := w.Path()
+		if !filepath.IsAbs(w.Path()) {
+			wd, err := sftpc.Getwd()
+			if err != nil {
+				return fmt.Errorf("unable to get working dir %v", err)
+			}
+			absPath = filepath.Join(wd, w.Path())
 		}
 
 		// and back to relative for the destination
-		relPath, err := filepath.Rel(dir.Root, absPath)
+		relPath, err := filepath.Rel(rootDir, absPath)
 		if err != nil {
 			return err
 		}
 
 		// add the directory base to the destination
-		relPath = filepath.Join(filepath.Base(dir.Root), relPath)
+		relPath = filepath.Join(filepath.Base(rootDir), relPath)
 
 		f, err := sftpc.Open(w.Path())
 		if err != nil {

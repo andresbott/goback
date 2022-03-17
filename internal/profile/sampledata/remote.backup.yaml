@@ -3,18 +3,26 @@
 name: remote
 
 remote:
-  type: sshPassword
-  url: bla.ble.com:22
-  path: /backup/out
-  user: user
-  password: bla
-  privateKey: privKey
-  passPhrase: pass
+    type: sshPassword
+    host: bla.ble.com
+    port: 22
+    user: user
+    password: bla
+    privateKey: privKey
+    passPhrase: pass
 
 dirs:
-  - root: relative
+  - root: relative/path
     exclude:
       - "*.log"
+
+mysql:
+  - dbname: dbname
+    user: user
+    pw: pw
+
+syncBackups:
+  remotePath: "/bla"
 
 destination: /backups
 keep: 3

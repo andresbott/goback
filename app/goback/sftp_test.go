@@ -74,7 +74,9 @@ func TestPullProfiles(t *testing.T) {
 		}
 		defer cl.Disconnect()
 
-		err = SyncBackups(cl, "/backupDestination", dir, "blib")
+		br := BackupRunner{}
+
+		err = br.syncBackups(cl, "/backupDestination", dir, "blib")
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}

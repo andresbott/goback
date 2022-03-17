@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/gobwas/glob"
 	"gopkg.in/yaml.v2"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,9 +12,8 @@ import (
 
 // local type to unmarshal
 type backupDir struct {
-	Root           string
-	FollowSymLinks bool
-	Exclude        []string
+	Root    string
+	Exclude []string
 }
 
 type BackupDir struct {
@@ -29,25 +27,17 @@ type MysqlBackup struct {
 	Pw     string
 }
 
-type remoteConnection struct {
+type RemoteCfg struct {
 	RemoteType string `yaml:"type"`
-	Url        string
-	Path       string
+	Host       string
+	Port       string
 	User       string
 	Password   string
 	PrivateKey string `yaml:"privateKey"`
 	PassPhrase string `yaml:"passPhrase"`
 }
-
-type RemoteConnection struct {
-	RemoteType string
-	Host       string
-	Port       string
-	Path       string
-	User       string
-	Password   string
-	PrivateKey string
-	PassPhrase string
+type SyncCfg struct {
+	RemotePath string `yaml:"remotePath"`
 }
 
 type EmailNotify struct {
@@ -61,9 +51,10 @@ type EmailNotify struct {
 // local type to unmarshal
 type profile struct {
 	Name        string
-	Remote      remoteConnection
+	Remote      RemoteCfg
 	Dirs        []backupDir
 	Mysql       []MysqlBackup
+	SyncBackups SyncCfg `yaml:"syncBackups"`
 	Destination string
 	Keep        int
 	Owner       string
@@ -73,10 +64,11 @@ type profile struct {
 
 type Profile struct {
 	Name        string
-	Remote      RemoteConnection
 	IsRemote    bool
+	Remote      RemoteCfg
 	Dirs        []BackupDir
 	Mysql       []MysqlBackup
+	SyncBackup  SyncCfg
 	Destination string
 	Keep        int
 	Owner       string
@@ -91,7 +83,6 @@ const (
 	Password   = "sshPassword"
 	PrivateKey = "sshKey"
 	SshAgent   = "sshAgent"
-	SftpSync   = "sftpSync"
 )
 
 // check if all the notification fields are of type default zero
@@ -130,6 +121,7 @@ func LoadProfile(file string) (Profile, error) {
 	ret := Profile{
 		Name:        p.Name,
 		Mysql:       p.Mysql,
+		SyncBackup:  p.SyncBackups,
 		Destination: p.Destination,
 		Keep:        p.Keep,
 		Owner:       p.Owner,
@@ -137,36 +129,25 @@ func LoadProfile(file string) (Profile, error) {
 	}
 
 	if ret.Name == "" {
-		return Profile{}, errors.New("profile cannot be empty")
+		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	// check for remote connection settings
 	if p.Remote.RemoteType != "" {
+		t := p.Remote.RemoteType
+		if t != Password && t != PrivateKey && t != SshAgent {
+			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
+		}
+		if p.Remote.Host == "" {
+			return Profile{}, fmt.Errorf("remote host cannot be empty")
+		}
+
+		ret.Remote = p.Remote
 		ret.IsRemote = true
 
-		t := p.Remote.RemoteType
-		if t != "sshPassword" && t != "sshKey" && t != "sshAgent" {
-			return Profile{}, fmt.Errorf("remote type %s is not allowed", t)
+		if ret.Remote.Port == "" {
+			ret.Remote.Port = getDefaultPort(t)
 		}
 
-		ret.Remote.RemoteType = p.Remote.RemoteType
-		ret.Remote.Path = p.Remote.Path
-		ret.Remote.User = p.Remote.User
-		ret.Remote.Password = p.Remote.Password
-		ret.Remote.PrivateKey = p.Remote.PrivateKey
-		ret.Remote.PassPhrase = p.Remote.PassPhrase
-		host, port, err := net.SplitHostPort(p.Remote.Url)
-
-		if err != nil {
-			if err.Error() == "address "+p.Remote.Url+": missing port in address" {
-				port = getDefaultPort(p.Remote.RemoteType)
-				host = p.Remote.Url
-			} else {
-				return Profile{}, fmt.Errorf("unable to parse url: %v", err)
-			}
-		}
-		ret.Remote.Host = host
-		ret.Remote.Port = port
 	}
 
 	// check notification config
@@ -175,6 +156,7 @@ func LoadProfile(file string) (Profile, error) {
 		ret.NotifyCfg = p.Notify
 	}
 
+	// handle directories
 	for _, bd := range p.Dirs {
 		d := BackupDir{
 			Root: bd.Root,
@@ -187,6 +169,7 @@ func LoadProfile(file string) (Profile, error) {
 			d.Exclude = append(d.Exclude, g)
 		}
 		ret.Dirs = append(ret.Dirs, d)
+
 	}
 
 	return ret, nil
@@ -194,7 +177,7 @@ func LoadProfile(file string) (Profile, error) {
 
 func getDefaultPort(in string) string {
 	switch in {
-	case Password, PrivateKey, SshAgent, SftpSync:
+	case Password, PrivateKey, SshAgent:
 		return "22"
 	default:
 		return ""
@@ -248,22 +231,24 @@ func LoadProfiles(dir string) ([]Profile, error) {
 
 func Boilerplate() string {
 	s := `---
+# make sure your filename end with .backup.yaml to be picked up.
+
 # profile name used to identify different backup profiles
 name: myService
 
-# if goback should run on a remote server instead of locally, leave empty to run locally
+# use a remote connection to run goback
 remote:
-    # the type of connection, currently valid: sshPassword | sshKey | sshAgent | sftpSync
+    # the type of connection, currently valid: sshPassword | sshKey | sshAgent 
     # if the type is set to sshAgent, get the ssh key from a running ssh agent
     type: sshPassword
-    url: bla.ble.com:22
-	# if type is sftpSync then this is the location where goback will sync from
-	path: /var/goback
-	# the username used to login to the server
+	#host/port of the server
+    host: bla.ble.com
+	port: 22
+    # the username used to login to the server
     user: user
     # password used when type is sshPassword 
     password: bla
-	# key file used when type is sshKey, a passphrase can be provided as well
+    # key file used when type is sshKey, a passphrase can be provided as well
     privateKey: privKey
     passPhrase: pass
 
@@ -283,11 +268,18 @@ mysql:
     user: user
     pw: pw
 
+# download backup files from a remote location to the local folder
+# this will only download files that do not yet exists locally
+# remote connection is mandatory for this to work
+syncBackups:
+  remotePath: "/bla"
+
 # this is the destination where the backup file will be written
 # only local filesystem is allowed
 destination: /backups
 
 # how many older backups to keep for this profile
+# this also affects the output of a synced directory
 keep: 3
 
 #change owner/mode of the generated file
