@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,6 +12,21 @@ import (
 
 func TestScpActions(t *testing.T) {
 	skipIfCi(t) // skip test if running in CI
+
+	// since git will drop empty folders, we create if as part of the test
+	if _, err := os.Stat("./sampledata/dir/empty"); os.IsNotExist(err) {
+		err := os.Mkdir("./sampledata/dir/empty", os.ModePerm)
+		if err != nil {
+			t.Fatalf("unable to create empty folder")
+		}
+	}
+
+	defer func() {
+		err := os.RemoveAll("./sampledata/dir/empty")
+		if err != nil {
+			t.Fatalf("unable to delte empty folder used in test")
+		}
+	}()
 
 	// in order to minimize the start/stop time of testconainers we run one setup and every subsequent test
 	// us executed as a sub tests
@@ -83,14 +99,14 @@ func TestScpActions(t *testing.T) {
 		defer cl.Disconnect()
 
 		t.Run("assert a directory", func(t *testing.T) {
-			got, err := cl.Stat("/data/dir with&$/empty dir")
+			got, err := cl.Stat("/data/dir with&$/subdir")
 			if err != nil {
 				t.Fatalf("unexpected error %v", err)
 			}
 
 			want := FileStat{
 				isDir: true,
-				name:  "empty dir",
+				name:  "subdir",
 			}
 			if diff := cmp.Diff(want, got, cmp.AllowUnexported(FileStat{})); diff != "" {
 				t.Errorf("output mismatch (-want +got):\n%s", diff)
@@ -144,12 +160,12 @@ func TestScpActions(t *testing.T) {
 
 			want := []FileStat{
 				{
-					isDir: true,
-					name:  "empty dir",
-				},
-				{
 					isDir: false,
 					name:  "file.json",
+				},
+				{
+					isDir: true,
+					name:  "subdir",
 				},
 				{
 					isDir: false,
@@ -162,9 +178,9 @@ func TestScpActions(t *testing.T) {
 		})
 
 		t.Run("empty dir", func(t *testing.T) {
-			got, err := cl.ReadDir("/data/dir with&$/empty dir")
+			got, err := cl.ReadDir("/data/empty")
 			if err != nil {
-				t.Fatalf("unexpected error %v", err)
+				t.Fatalf("unexpected error: %v", err)
 			}
 
 			want := []FileStat{}
@@ -218,9 +234,10 @@ func TestScpActions(t *testing.T) {
 		want := []string{
 			"d:true - /data",
 			"d:true - /data/dir with&$",
-			"d:true - /data/dir with&$/empty dir",
 			"d:false - /data/dir with&$/file.json",
+			"d:true - /data/dir with&$/subdir",
 			"d:false - /data/dir with&$/testfile.txt",
+			"d:true - /data/empty", // created at the top of the test
 			"d:true - /data/files",
 			"d:true - /data/files/dir1",
 			"d:false - /data/files/dir1/file.json",

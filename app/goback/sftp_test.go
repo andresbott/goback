@@ -252,9 +252,9 @@ func TestSFTP(t *testing.T) {
 				},
 			},
 			expectedFiles: []string{
-				"dir1/file.json",
 				"dir1/subdir1/subfile.log",
 				"dir1/subdir1/subfile1.txt",
+				"dir1/file.json",
 			},
 		},
 
@@ -273,8 +273,8 @@ func TestSFTP(t *testing.T) {
 				},
 			},
 			expectedFiles: []string{
-				"dir1/file.json",
 				"dir1/subdir1/subfile1.txt",
+				"dir1/file.json",
 				"dir2/file.yaml",
 			},
 		},
