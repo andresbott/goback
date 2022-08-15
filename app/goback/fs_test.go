@@ -1,7 +1,6 @@
 package goback
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -164,7 +163,7 @@ func TestBackupLocalFs(t *testing.T) {
 					t.Fatalf("expecting message error: \"%s\", but got: \"%s\"", tc.expectedErr, err.Error())
 				}
 
-				files, _ := ioutil.ReadDir(dir)
+				files, _ := os.ReadDir(dir)
 				if len(files) != 0 {
 					t.Errorf("expecting output file to be deleted, but found %d files in the directory", len(files))
 				}
