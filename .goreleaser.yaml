@@ -39,7 +39,7 @@ nfpms:
 
     # Version Prerelease.
     # Default is extracted from `version` if it is semver compatible.
-    prerelease: snapshot
+#    prerelease: snapshot
 
     #pacakge classification
     section: default
