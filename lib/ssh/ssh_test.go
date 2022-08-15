@@ -165,5 +165,4 @@ func TestSshConnect(t *testing.T) {
 			t.Errorf("output mismatch (-want +got):\n%s", diff)
 		}
 	})
-
 }

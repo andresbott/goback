@@ -187,17 +187,17 @@ func sshAgentSigners() ([]ssh.Signer, *net.Conn, error) {
 	return signers, &conn, err
 }
 
-func (scpc *Client) Connect() error {
-	if scpc.conn != nil {
+func (sshc *Client) Connect() error {
+	if sshc.conn != nil {
 		return errors.New("connection already open")
 	}
 
 	// open connection
-	conn, err := ssh.Dial("tcp", scpc.server, scpc.config)
+	conn, err := ssh.Dial("tcp", sshc.server, sshc.config)
 	if err != nil {
-		return fmt.Errorf("dial to %v failed %v", scpc.server, err)
+		return fmt.Errorf("dial to %v failed %v", sshc.server, err)
 	}
-	scpc.conn = conn
+	sshc.conn = conn
 
 	return nil
 }
@@ -215,30 +215,30 @@ func GetAuthType(in string) AuthType {
 	}
 }
 
-func (scpc *Client) Disconnect() error {
-	if scpc.agentConn != nil {
-		scpc.agentConn.Close()
+func (sshc *Client) Disconnect() error {
+	if sshc.agentConn != nil {
+		sshc.agentConn.Close()
 
 	}
 
-	err := scpc.conn.Close()
-	scpc.conn = nil
+	err := sshc.conn.Close()
+	sshc.conn = nil
 	return err
 }
 
-func (scpc *Client) Connection() *ssh.Client {
-	return scpc.conn
+func (sshc *Client) Connection() *ssh.Client {
+	return sshc.conn
 }
 
-func (scpc *Client) Session() (*ssh.Session, error) {
-	if scpc.conn == nil {
+func (sshc *Client) Session() (*ssh.Session, error) {
+	if sshc.conn == nil {
 		return nil, errors.New("unable to create session: connection not open")
 	}
 
 	// open session
-	session, err := scpc.conn.NewSession()
+	session, err := sshc.conn.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("create session for %v failed %v", scpc.server, err)
+		return nil, fmt.Errorf("create session for %v failed %v", sshc.server, err)
 	}
 	return session, nil
 }
