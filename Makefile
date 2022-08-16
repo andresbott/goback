@@ -1,6 +1,22 @@
 COMMIT_SHA_SHORT ?= $(shell git rev-parse --short=12 HEAD)
 PWD_DIR := ${CURDIR}
 
+# Check that given variables are set and all have non-empty values,
+# die with an error otherwise.
+#
+# Params:
+#   1. Variable name(s) to test.
+#   2. (optional) Error message to print.
+check_defined = \
+    $(strip $(foreach 1,$1, \
+        $(call __check_defined,$1,$(strip $(value 2)))))
+__check_defined = \
+    $(if $(value $1),, \
+      $(error Undefined attribute $1$(if $2, ($2))))
+# call with:
+#		@:$(call check_defined, TAG, Tag value for docker image)
+
+
 default: help
 
 status: ## get info about the project
@@ -26,6 +42,7 @@ build: ## builds a snapshot build using goreleaser
 	@goreleaser --snapshot --rm-dist
 
 release: verify ## release a new version of goback
+	@:$(call check_defined, version, "version defined: call with version=\"v1.2.3\"")
 	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -a $(version) -m "Release version: $(version)"
