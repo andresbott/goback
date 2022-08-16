@@ -32,6 +32,8 @@ release: verify ## release a new version of goback
 	@git push origin $(version)
 	@goreleaser --rm-dist
 
+clean: ## clean the build environment
+	@rm -rf ./dist
 
 help: ## help command
 	@egrep '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST)  | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'

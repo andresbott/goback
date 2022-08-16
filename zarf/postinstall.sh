@@ -5,6 +5,8 @@
 # Declare an array of string with type
 declare -a exec=(
 "/usr/bin/goback"
+"/etc/cron.weekly/goback.sh"
+"/etc/cron.monthly/goback.sh"
 )
 
 # Iterate the string array using for loop
