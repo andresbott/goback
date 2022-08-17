@@ -46,6 +46,7 @@ release: verify ## release a new version of goback
 	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -d $(version) || true # delete tag if it exists, allows to overwrite tags
+	@git push --delete origin $(version) || true
 	@git tag -a $(version) -m "Release version: $(version)"
 	@git push origin $(version)
 	@goreleaser --rm-dist
