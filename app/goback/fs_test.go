@@ -60,6 +60,7 @@ func TestBackupLocalFs(t *testing.T) {
 				"dir1/file.json",
 				"dir1/subdir1/subfile.log",
 				"dir1/subdir1/subfile1.txt",
+				"dir2/.hidden",
 				"dir2/file.yaml",
 			},
 		},
@@ -199,6 +200,7 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/dir1/file.json",
 				"files/dir1/subdir1/subfile.log",
 				"files/dir1/subdir1/subfile1.txt",
+				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
 				"files/link",
 			},
@@ -215,6 +217,7 @@ func TestDumpFileSystem(t *testing.T) {
 			},
 			want: []string{
 				"files/dir1/file.json",
+				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
 				"files/link",
 			},
@@ -230,6 +233,7 @@ func TestDumpFileSystem(t *testing.T) {
 			},
 			want: []string{
 				"files/dir1/file.json",
+				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
 				"files/link",
 			},

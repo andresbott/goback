@@ -69,7 +69,6 @@ mysql:
 * write documentation
 
 #### TODO
-* verify that hidden files (.something) are also backed up
 
 ## Development
 

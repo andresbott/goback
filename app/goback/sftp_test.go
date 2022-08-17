@@ -275,6 +275,7 @@ func TestSFTP(t *testing.T) {
 			expectedFiles: []string{
 				"dir1/subdir1/subfile1.txt",
 				"dir1/file.json",
+				"dir2/.hidden",
 				"dir2/file.yaml",
 			},
 		},
