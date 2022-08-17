@@ -86,7 +86,7 @@ func TestBackupLocalFs(t *testing.T) {
 				"dir1/file.json",
 				"dir1/subdir1/subfile.log",
 				"dir1/subdir1/subfile1.txt",
-				"_mysqldump/mydb.dump.slq",
+				"_mysqldump/mydb.dump.sql",
 			},
 		},
 
@@ -200,6 +200,7 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/dir1/subdir1/subfile.log",
 				"files/dir1/subdir1/subfile1.txt",
 				"files/dir2/file.yaml",
+				"files/link",
 			},
 		},
 
@@ -215,6 +216,7 @@ func TestDumpFileSystem(t *testing.T) {
 			want: []string{
 				"files/dir1/file.json",
 				"files/dir2/file.yaml",
+				"files/link",
 			},
 		},
 
@@ -229,6 +231,33 @@ func TestDumpFileSystem(t *testing.T) {
 			want: []string{
 				"files/dir1/file.json",
 				"files/dir2/file.yaml",
+				"files/link",
+			},
+		},
+		{
+			name: "expect root symlink evaluated and backed up",
+			profile: profile.BackupDir{
+				Root: "sampledata/files/link",
+				Exclude: []glob.Glob{
+					getGlob("*.txt"),
+				},
+			},
+			want: []string{
+				"link/file.json",
+				"link/subdir1/subfile.log",
+			},
+		},
+		{
+			name: "don't follow child symlinks",
+			profile: profile.BackupDir{
+				Root: "sampledata/files/",
+				Exclude: []glob.Glob{
+					getGlob("sampledata/files/dir1/*"),
+					getGlob("sampledata/files/dir2/*"),
+				},
+			},
+			want: []string{
+				"files/link",
 			},
 		},
 	}

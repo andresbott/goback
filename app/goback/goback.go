@@ -196,8 +196,17 @@ func (br BackupRunner) BackupProfile(prfl profile.Profile) error {
 	// check if destination dir exists
 	fInfo, err := os.Stat(prfl.Destination)
 	if err != nil {
-		return fmt.Errorf("destination not found: %v", err)
+		// create dir if it does not exists
+		if errors.Is(err, os.ErrNotExist) {
+			mkdirErr := os.Mkdir(prfl.Destination, 0750)
+			if mkdirErr != nil {
+				return fmt.Errorf("unable to create backup destination: %v", err)
+			}
+			return nil
+		}
+		return fmt.Errorf("unable to stat destination: %v", err)
 	}
+
 	if !fInfo.IsDir() {
 		return errors.New("the output path is not a directory")
 	}

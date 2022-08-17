@@ -45,11 +45,29 @@ type fileAdder interface {
 // dumpFileSystem takes a single backup dir, recursively traverses the files and adds them to the zip handler
 func dumpFileSystem(dir profile.BackupDir, fa fileAdder) error {
 
+	rootDir := dir.Root
+
 	// check if dir exists
-	finfo, err := os.Stat(dir.Root)
+	finfo, err := os.Lstat(rootDir)
 	if err != nil {
 		return err
 	}
+
+	// if root is a symlink follow it
+	if finfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+
+		d, lErr := filepath.EvalSymlinks(rootDir)
+		if lErr != nil {
+			return fmt.Errorf("unable to evaluate symlink: %v", err)
+		}
+		finfo, err = os.Lstat(d)
+		if err != nil {
+			return err
+		}
+		rootDir = d
+	}
+
+	//spew.Dump(rootDir)
 	if !finfo.IsDir() {
 		return errors.New("the path is not a directory")
 	}
@@ -72,30 +90,30 @@ func dumpFileSystem(dir profile.BackupDir, fa fileAdder) error {
 			}
 		}
 
-		// transform to absolute path
+		// transform the origin to absolute path
 		absPath, err := filepath.Abs(path)
 		if err != nil {
 			return err
 		}
 
 		// and back to relative for the destination
-		relPath, err := filepath.Rel(dir.Root, path)
+		relPath, err := filepath.Rel(rootDir, path)
 		if err != nil {
 			return err
 		}
 
 		// add the directory base to the destination
+		// here we use the profile root not the calculated one in case of  symlink
 		relPath = filepath.Join(filepath.Base(dir.Root), relPath)
 
 		err = fa.AddFile(absPath, relPath)
 		if err != nil {
 			return err
 		}
-
 		return nil
 	}
 
-	err = filepath.Walk(dir.Root, fn)
+	err = filepath.Walk(rootDir, fn)
 
 	if err != nil {
 		return err

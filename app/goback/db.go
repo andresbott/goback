@@ -40,7 +40,7 @@ func dumpDb(binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error 
 		return err
 	}
 
-	zlipWriter, err := zip.FileWriter(filepath.Join("_mysqldump", dbPrfl.DbName+".dump.slq"))
+	zlipWriter, err := zip.FileWriter(filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func dumpSshDb(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip
 		return fmt.Errorf("unable to start ssh command: %v", err)
 	}
 
-	err = zip.WriteFile(outPipe, filepath.Join("_mysqldump", dbPrfl.DbName+".dump.slq"))
+	err = zip.WriteFile(outPipe, filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
 	if err != nil {
 		return fmt.Errorf("unable write mysqloutout to zip file, %v", err)
 	}

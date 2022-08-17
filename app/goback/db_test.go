@@ -65,14 +65,14 @@ func TestDumpDb(t *testing.T) {
 	}
 
 	expect := []string{
-		"_mysqldump/testDbName.dump.slq",
+		"_mysqldump/testDbName.dump.sql",
 	}
 	if diff := cmp.Diff(expect, got); diff != "" {
 		t.Errorf("output mismatch (-want +got):\n%s", diff)
 	}
 
 	expectContent := "mysqldump mock binary, params: -u user -ppass --add-drop-database --databases testDbName\n"
-	gotContent, err := readFileInZio(zipFile, "_mysqldump/testDbName.dump.slq")
+	gotContent, err := readFileInZio(zipFile, "_mysqldump/testDbName.dump.sql")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -150,14 +150,14 @@ func TestDumpSshDb(t *testing.T) {
 	}
 
 	expect := []string{
-		"_mysqldump/testDbName.dump.slq",
+		"_mysqldump/testDbName.dump.sql",
 	}
 	if diff := cmp.Diff(expect, got); diff != "" {
 		t.Errorf("output mismatch (-want +got):\n%s", diff)
 	}
 
 	expectContent := "mysqldump mock binary, params: -u user -ppass --add-drop-database --databases testDbName\n"
-	gotContent, err := readFileInZio(zipFile, "_mysqldump/testDbName.dump.slq")
+	gotContent, err := readFileInZio(zipFile, "_mysqldump/testDbName.dump.sql")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

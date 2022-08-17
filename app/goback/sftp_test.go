@@ -289,7 +289,7 @@ func TestSFTP(t *testing.T) {
 				},
 			},
 			expectedFiles: []string{
-				"_mysqldump/mydb.dump.slq",
+				"_mysqldump/mydb.dump.sql",
 			},
 		},
 	}
