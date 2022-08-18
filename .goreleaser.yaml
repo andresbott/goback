@@ -57,9 +57,9 @@ nfpms:
         dst: /etc/goback/backupd.monthly/.placeholder
       - src: zarf/placeholder
         dst: /etc/goback/profiles/.placeholder
-      - src: zarf/cron.sh
+      - src: zarf/cron_weekly.sh
         dst: /etc/cron.weekly/goback.sh
-      - src: zarf/cron.sh
+      - src: zarf/cron_monthly.sh
         dst: /etc/cron.monthly/goback.sh
 
     # Scripts to execute during the installation of the package.
