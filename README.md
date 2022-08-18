@@ -69,6 +69,7 @@ mysql:
 * write documentation
 
 #### TODO
+* add option to follow symlink instead of adding them to the backup file
 
 ## Development
 
