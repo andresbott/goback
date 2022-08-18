@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -57,7 +58,39 @@ func (z *Handler) AddFile(origin string, zipDest string) error {
 		return fmt.Errorf("failed to open %s: %s", origin, err)
 	}
 	defer file.Close()
+
 	return z.WriteFile(file, zipDest)
+}
+
+// AddSymlink writes a symlink into a zip file
+func (z *Handler) AddSymlink(origin string, zipDest string) error {
+	file, err := os.Open(origin)
+	if err != nil {
+		return fmt.Errorf("failed to open %s: %s", origin, err)
+	}
+	defer file.Close()
+
+	info, err := os.Lstat(file.Name())
+	if err != nil {
+		return fmt.Errorf("failed to stat link: %s", err)
+	}
+	header, err := zip.FileInfoHeader(info)
+	if err != nil {
+		return fmt.Errorf("failed to extract header from link: %s", err)
+	}
+	header.Method = zip.Deflate
+
+	writer, err := z.zipWriter.CreateHeader(header)
+	if err != nil {
+		return fmt.Errorf("failed to create header from link: %s", err)
+	}
+
+	// Write symlink's target to writer - file's body for symlinks is the symlink target.
+	_, err = writer.Write([]byte(filepath.ToSlash(zipDest)))
+	if err != nil {
+		return fmt.Errorf("failed to write link into zip file: %s", err)
+	}
+	return nil
 }
 
 // WriteFile reads from a reader and copies the bytes over into a zip file

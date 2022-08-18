@@ -18,12 +18,7 @@
 
 *.iml
 .idea
-
-constants.go
-sqlite.go
-
-# project databases
-carbon.db
+.directory
 
 dist/
 test/

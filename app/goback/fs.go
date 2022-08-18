@@ -40,6 +40,7 @@ func backupLocalFs(dirs []profile.BackupDir, dbs []profile.MysqlBackup, dest str
 
 type fileAdder interface {
 	AddFile(origin string, dest string) error
+	AddSymlink(origin string, dest string) error
 }
 
 // dumpFileSystem takes a single backup dir, recursively traverses the files and adds them to the zip handler
@@ -105,6 +106,15 @@ func dumpFileSystem(dir profile.BackupDir, fa fileAdder) error {
 		// add the directory base to the destination
 		// here we use the profile root not the calculated one in case of  symlink
 		relPath = filepath.Join(filepath.Base(dir.Root), relPath)
+
+		// if target is a symlink add the symlink
+		if info.Mode()&os.ModeSymlink == os.ModeSymlink { // & is a bit AND
+			err := fa.AddSymlink(absPath, relPath)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
 
 		err = fa.AddFile(absPath, relPath)
 		if err != nil {

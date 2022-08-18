@@ -111,6 +111,25 @@ func TestBackupLocalFs(t *testing.T) {
 			},
 			expectedErr: "error running mysqldump: exit status 1",
 		},
+
+		{
+			name: "expect symbolic link to be preserved",
+			profile: profile.Profile{
+				Name: "bli",
+				Dirs: []profile.BackupDir{
+					{
+						Root: "sampledata/files/",
+						Exclude: []glob.Glob{
+							getGlob("sampledata/files/dir1/*"),
+							getGlob("sampledata/files/dir2/*"),
+						},
+					},
+				},
+			},
+			expectedFiles: []string{
+				"link",
+			},
+		},
 	}
 
 	setup := func(t *testing.T) (func(t *testing.T), string) {
@@ -179,6 +198,10 @@ type fileAppender struct {
 }
 
 func (a *fileAppender) AddFile(origin string, dest string) error {
+	a.files = append(a.files, dest)
+	return nil
+}
+func (a *fileAppender) AddSymlink(origin string, dest string) error {
 	a.files = append(a.files, dest)
 	return nil
 }
