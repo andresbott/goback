@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -74,19 +73,26 @@ func (z *Handler) AddSymlink(origin string, zipDest string) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat link: %s", err)
 	}
+
 	header, err := zip.FileInfoHeader(info)
 	if err != nil {
 		return fmt.Errorf("failed to extract header from link: %s", err)
 	}
 	header.Method = zip.Deflate
+	header.Name = zipDest
 
 	writer, err := z.zipWriter.CreateHeader(header)
 	if err != nil {
 		return fmt.Errorf("failed to create header from link: %s", err)
 	}
 
+	linkVal, err := os.Readlink(origin)
+	if err != nil {
+		return fmt.Errorf("failed to read target from link: %s", err)
+	}
+
 	// Write symlink's target to writer - file's body for symlinks is the symlink target.
-	_, err = writer.Write([]byte(filepath.ToSlash(zipDest)))
+	_, err = writer.Write([]byte(linkVal))
 	if err != nil {
 		return fmt.Errorf("failed to write link into zip file: %s", err)
 	}

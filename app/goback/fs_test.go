@@ -121,13 +121,14 @@ func TestBackupLocalFs(t *testing.T) {
 						Root: "sampledata/files/",
 						Exclude: []glob.Glob{
 							getGlob("sampledata/files/dir1/*"),
-							getGlob("sampledata/files/dir2/*"),
 						},
 					},
 				},
 			},
 			expectedFiles: []string{
-				"link",
+				"files/dir2/.hidden",
+				"files/dir2/file.yaml",
+				"files/notRoot/link",
 			},
 		},
 	}
@@ -147,7 +148,7 @@ func TestBackupLocalFs(t *testing.T) {
 
 		return func(t *testing.T) {
 			os.Setenv("PATH", pathEnv)
-			os.RemoveAll(dir)
+			//os.RemoveAll(dir)
 		}, dir
 	}
 
@@ -225,7 +226,7 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/dir1/subdir1/subfile1.txt",
 				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
-				"files/link",
+				"files/notRoot/link",
 			},
 		},
 
@@ -242,7 +243,7 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/dir1/file.json",
 				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
-				"files/link",
+				"files/notRoot/link",
 			},
 		},
 
@@ -258,13 +259,13 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/dir1/file.json",
 				"files/dir2/.hidden",
 				"files/dir2/file.yaml",
-				"files/link",
+				"files/notRoot/link",
 			},
 		},
 		{
 			name: "expect root symlink evaluated and backed up",
 			profile: profile.BackupDir{
-				Root: "sampledata/files/link",
+				Root: "sampledata/files/notRoot/link",
 				Exclude: []glob.Glob{
 					getGlob("*.txt"),
 				},
@@ -284,7 +285,7 @@ func TestDumpFileSystem(t *testing.T) {
 				},
 			},
 			want: []string{
-				"files/link",
+				"files/notRoot/link",
 			},
 		},
 	}
