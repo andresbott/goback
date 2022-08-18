@@ -202,9 +202,13 @@ func (br BackupRunner) BackupProfile(prfl profile.Profile) error {
 			if mkdirErr != nil {
 				return fmt.Errorf("unable to create backup destination: %v", err)
 			}
-			return nil
+			fInfo, err = os.Stat(prfl.Destination)
+			if err != nil {
+				return fmt.Errorf("unable to stat destination: %v", err)
+			}
+		} else {
+			return fmt.Errorf("unable to stat destination: %v", err)
 		}
-		return fmt.Errorf("unable to stat destination: %v", err)
 	}
 
 	if !fInfo.IsDir() {
