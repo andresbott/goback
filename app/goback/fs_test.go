@@ -148,7 +148,7 @@ func TestBackupLocalFs(t *testing.T) {
 
 		return func(t *testing.T) {
 			os.Setenv("PATH", pathEnv)
-			//os.RemoveAll(dir)
+			os.RemoveAll(dir)
 		}, dir
 	}
 
