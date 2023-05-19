@@ -28,7 +28,7 @@ fmt: ## format go code and run mod tidy
 
 .PHONY: test
 test: ## run go tests
-	@go test ./... -v -cover
+	@go test ./... -cover
 
 lint: ## run go linter
 	@golangci-lint run

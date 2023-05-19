@@ -58,9 +58,9 @@ nfpms:
       - src: zarf/placeholder
         dst: /etc/goback/profiles/.placeholder
       - src: zarf/cron_weekly.sh
-        dst: /etc/cron.weekly/goback.sh
+        dst: /etc/cron.weekly/run-goback
       - src: zarf/cron_monthly.sh
-        dst: /etc/cron.monthly/goback.sh
+        dst: /etc/cron.monthly/run-goback
 
     # Scripts to execute during the installation of the package.
     # Keys are the possible targets during the installation process

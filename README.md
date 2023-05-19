@@ -70,6 +70,8 @@ mysql:
 
 #### TODO
 * add option to follow symlink instead of adding them to the backup file
+* use tar.gz instead of zip to keep file permissions
+* don't fail on broken symlinks
 
 ## Development
 
