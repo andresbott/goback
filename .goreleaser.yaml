@@ -4,6 +4,7 @@
 # used to release in GITHUB
 env_files:
   github_token: ~/.goreleaser/gh_token
+  # needs repo scope
 
 before:
   hooks:

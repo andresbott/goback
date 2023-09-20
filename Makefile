@@ -41,7 +41,7 @@ benchmark: ## run go benchmarks
 build: ## builds a snapshot build using goreleaser
 	@goreleaser --snapshot --rm-dist
 
-release: verify ## release a new version of goback
+release: verify ## release a new version, call with version="v1.2.3", make sure to have valid GH token
 	@:$(call check_defined, version, "version defined: call with version=\"v1.2.3\"")
 	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
