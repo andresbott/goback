@@ -1,3 +1,3 @@
 #!/usr/bin/sh
 set -e
-goback -d /etc/goback/backupd.weekly/
+goback -d /etc/goback/backupd.weekly/ > /dev/null
