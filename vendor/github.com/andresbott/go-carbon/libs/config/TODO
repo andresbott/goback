@@ -1,0 +1,29 @@
+* read config dirs
+* user space config in .config
+    * write
+* defaulf config location to populate defaults to file
+* dont fail if config path does not exist ( option to make config file optional/mandatory)
+* allow multiple files to be overlaid
+
+* in the options option to specifi a file as key value and have that loaded
+    e.g. to load a secret from file
+
+* read envs
+*unmarshal slieces of structs
+
+
+* why i dont use viper:
+ - not really possible to make a 12 factor confit to unmarshal
+ - not possible to unmarshal config sections
+ - does not support config.d pattern
+ - i wanted to add validation like required
+
+
+
+doc:
+* conventions
+
+* points:
+    * explicit init types passed to the Load function
+* best practices
+    * managing slices is complicated, e.g. overwriting a single one using an envs better create a config using maps
