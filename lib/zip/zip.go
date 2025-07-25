@@ -114,8 +114,8 @@ func (z *Handler) WriteFile(in io.Reader, dest string) error {
 	return nil
 }
 
-// FileWriter returns a io.writer used to write to the file within the zip file defined with dest
-func (z Handler) FileWriter(dest string) (io.Writer, error) {
+// FileWriter returns an io.writer used to write to the file within the zip file defined with dest
+func (z *Handler) FileWriter(dest string) (io.Writer, error) {
 	if !z.isOpen {
 		return nil, errors.New("zip handler is closed")
 	}

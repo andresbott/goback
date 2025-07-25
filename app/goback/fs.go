@@ -68,7 +68,6 @@ func dumpFileSystem(dir profile.BackupDir, fa fileAdder) error {
 		rootDir = d
 	}
 
-	//spew.Dump(rootDir)
 	if !finfo.IsDir() {
 		return errors.New("the path is not a directory")
 	}

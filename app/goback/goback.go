@@ -24,12 +24,12 @@ const dateStr = "2006_02_01-15:04:05"
 
 // BackupRunner is the entry point to the application
 type BackupRunner struct {
-	Printer  clilog.CliOut
+	Printer  *clilog.CliOut
 	profiles []profile.Profile
 }
 
-// LoadProfile adds a single profile file to the list of profiles to be executed
-func (br *BackupRunner) LoadProfile(file string) error {
+// LoadProfileFile adds a single profile file to the list of profiles to be executed
+func (br *BackupRunner) LoadProfileFile(file string) error {
 
 	br.Printer.Print(fmt.Sprintf("Loading profile from file: \"%s\"", file))
 
@@ -41,8 +41,8 @@ func (br *BackupRunner) LoadProfile(file string) error {
 	return nil
 }
 
-// LoadProfiles adds all the profiles found in the directory to the list of profiles to be executed
-func (br *BackupRunner) LoadProfiles(dir string) error {
+// LoadProfilesDir adds all the profiles found in the directory to the list of profiles to be executed
+func (br *BackupRunner) LoadProfilesDir(dir string) error {
 
 	br.Printer.Print(fmt.Sprintf("Loading profiles from dorectory: \"%s\"", dir))
 
@@ -87,31 +87,7 @@ func (br *BackupRunner) Run() error {
 			br.Printer.RemIndent()
 		}
 
-		// sync remote backups
-		if prfl.SyncBackup.RemotePath != "" {
-			br.Printer.Print(fmt.Sprintf("Running sync of backups for profile: \"%s\"", prfl.Name))
-			br.Printer.AddIndent()
-			start2 := time.Now()
-			err := br.SyncBackupsProfile(prfl)
-			if err != nil {
-				if prfl.Notify {
-					// ignore notification error
-					_ = NotifyFailure(prfl.NotifyCfg, err)
-				}
-				capturedErrs = true
-				br.Printer.Print(fmt.Sprintf("[X] Error syncing backups files for profile \"" + prfl.Name + "\": " + err.Error()))
-				br.Printer.RemIndent()
-				continue
-			}
-			br.Printer.RemIndent()
-			t2 := time.Now()
-			elapsed2 := t2.Sub(start2)
-			br.Printer.Print(fmt.Sprintf("Sync took: \"%s\"", elapsed2.String()))
-			br.Printer.RemIndent()
-		}
-
 		// delete old backup files
-
 		br.Printer.Print(fmt.Sprintf("Deleting older backups for profile: \"%s\"", prfl.Name))
 		br.Printer.AddIndent()
 
@@ -139,60 +115,9 @@ func (br *BackupRunner) Run() error {
 	return nil
 }
 
-// SyncBackupsProfile takes a remote (sftp) location from the profile and donwloads remote backups fiels
-// to the local location
-func (br BackupRunner) SyncBackupsProfile(prfl profile.Profile) error {
-	// check if destination dir exists
-	fInfo, err := os.Stat(prfl.Destination)
-	if err != nil {
-		return fmt.Errorf("destination not found: %v", err)
-	}
-	if !fInfo.IsDir() {
-		return errors.New("the output path is not a directory")
-	}
-
-	// handle file backup
-	if !prfl.IsRemote {
-		return errors.New("sync backups only works with remote location enabled")
-	}
-
-	port, err := strconv.Atoi(prfl.Remote.Port)
-	if err != nil {
-		return fmt.Errorf("error parsisng port: %v", err)
-	}
-
-	sshC, err := ssh.New(ssh.Cfg{
-		Host:          prfl.Remote.Host,
-		Port:          port,
-		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
-		User:          prfl.Remote.User,
-		Password:      prfl.Remote.Password,
-		PrivateKey:    prfl.Remote.PrivateKey,
-		PassPhrase:    prfl.Remote.PassPhrase,
-		IgnoreHostKey: false, // no need to expose this for the moment
-	})
-
-	if err != nil {
-		return fmt.Errorf("error creating ssh client: %v", err)
-	}
-	err = sshC.Connect()
-	if err != nil {
-		return fmt.Errorf("error connecting ssh: %v", err)
-	}
-	defer func() {
-		_ = sshC.Disconnect()
-	}()
-
-	err = br.syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
-	if err != nil {
-		return fmt.Errorf("error running sftp backup profile: %v", err)
-	}
-	return nil
-}
-
 // BackupProfile takes a single profile as input and generates a single Zip backup as output
 // the sources of backup can be either local fs or sftp connection
-func (br BackupRunner) BackupProfile(prfl profile.Profile) error {
+func (br *BackupRunner) BackupProfile(prfl profile.Profile) error {
 	// check if destination dir exists
 	fInfo, err := os.Stat(prfl.Destination)
 	if err != nil {

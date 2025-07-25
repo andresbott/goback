@@ -21,7 +21,7 @@ func (l *CliOut) RemIndent() {
 	}
 }
 
-func (l CliOut) Print(msg string) {
+func (l *CliOut) Print(msg string) {
 	if l.Quiet {
 		return
 	}

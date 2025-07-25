@@ -139,7 +139,7 @@ func TestLoadProfile(t *testing.T) {
 
 	//
 	//t.Run("load nonexistent file", func(t *testing.T) {
-	//	_, err := LoadProfile("sampledata/nonexistent.yaml")
+	//	_, err := LoadProfileFile("sampledata/nonexistent.yaml")
 	//	if err == nil {
 	//		t.Fatal("expecting an error but none was returned")
 	//	}
@@ -151,7 +151,7 @@ func TestLoadProfile(t *testing.T) {
 	//})
 	//
 	//t.Run("load from wrong file type", func(t *testing.T) {
-	//	_, err := LoadProfile("sampledata/json.json")
+	//	_, err := LoadProfileFile("sampledata/json.json")
 	//	if err == nil {
 	//		t.Fatal("expecting an error but none was returned")
 	//	}
