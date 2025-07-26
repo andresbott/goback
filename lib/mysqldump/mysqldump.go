@@ -76,9 +76,6 @@ func (h *Handler) loadCnfFiles(files []string) error {
 		}
 	}
 
-	if usr == "" || pw == "" {
-		return errors.New("user or password is empty")
-	}
 	h.user = usr
 	h.pw = pw
 
