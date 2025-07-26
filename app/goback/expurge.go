@@ -43,7 +43,7 @@ func (br *BackupRunner) ExpurgeDir(path string, keepN int, name string) error {
 	}
 
 	for _, file := range filesToDelete {
-		br.Printer.Print(fmt.Sprintf("Deleting old backup: \"%s\"", file))
+		br.Logger.Info("Deleting old backup", "file", file)
 		e := os.Remove(filepath.Join(path, file))
 		if e != nil {
 			return fmt.Errorf("unable to delete old zip file: %v", e)

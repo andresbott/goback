@@ -67,8 +67,11 @@ mysql:
 
 * backup git repositories
 * write documentation
+* exclude folders that contain .nobackup
 
 #### TODO
+* use systemd timers instead of cron
+* mysqldump should not depend on my.cnf
 * add option to follow symlink instead of adding them to the backup file
 * use tar.gz instead of zip to keep file permissions
 * don't fail on broken symlinks

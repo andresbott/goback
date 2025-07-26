@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gopkg.in/ini.v1"
 	"io"
+	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
@@ -36,7 +37,7 @@ func New(cfg Cfg) (*Handler, error) {
 
 	// only try to read user/pw from mysql config if it is not explicitly set
 	if cfg.User == "" || cfg.Pw == "" {
-		err := h.userFromCnf(MysqlIniLocations())
+		err := h.loadCnfFiles(MysqlIniLocations())
 		if err != nil {
 			return nil, err
 		}
@@ -44,15 +45,18 @@ func New(cfg Cfg) (*Handler, error) {
 	return &h, nil
 }
 
-// userFromCnf will try to extract the user/pw from known mysql ini files,
+// loadCnfFiles will try to extract the user/pw from known mysql ini files,
 // if the information is not found, an error is returned
-func (h *Handler) userFromCnf(files []string) error {
+func (h *Handler) loadCnfFiles(files []string) error {
 
 	usr := ""
 	pw := ""
 	for _, file := range files {
 		cfg, err := ini.Load(file)
 		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return err
 		}
 		c := cfg.Section("client")
@@ -81,27 +85,31 @@ func (h *Handler) userFromCnf(files []string) error {
 	return nil
 }
 
-func (h Handler) Cmd() string {
+func (h *Handler) Cmd() string {
 	cmd, args := h.getCmd()
 	return cmd + " " + strings.Join(args, " ")
 }
 
 // getCmd returns the cmd parameters to be used when we invoke mysqldump
-func (h Handler) getCmd() (string, []string) {
+func (h *Handler) getCmd() (string, []string) {
 
-	args := []string{
-		"-u",
-		h.user,
-		"-p" + h.pw,
+	var args []string
+	if h.user != "" {
+		args = append(args, "-u", h.user)
+	}
+	if h.pw != "" {
+		args = append(args, "-p"+h.pw)
+	}
+	args = append(args,
 		"--add-drop-database",
 		"--databases",
 		h.dbName,
-	}
+	)
 	return h.binPath, args
 }
 
 // Exec will execute mysqldump and write the output into the passed writer
-func (h Handler) Exec(w io.Writer) error {
+func (h *Handler) Exec(w io.Writer) error {
 
 	bin, args := h.getCmd()
 	cmd := exec.Command(bin, args...)

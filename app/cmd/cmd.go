@@ -3,10 +3,11 @@ package cmd
 import (
 	"fmt"
 	"github.com/AndresBott/goback/app/goback"
+	"github.com/AndresBott/goback/app/logger"
 	"github.com/AndresBott/goback/app/metainfo"
-	"github.com/AndresBott/goback/internal/clilog"
 	"github.com/AndresBott/goback/internal/profile"
 	"github.com/spf13/cobra"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -49,20 +50,19 @@ func newRootCommand() *cobra.Command {
 
 func backupCmd() *cobra.Command {
 
-	quiet := false
+	loglevel := "info"
 	cmd := cobra.Command{
 		Use:   "backup",
 		Short: "backup a profile or a directory",
 		Long:  `backup a profile or a directory`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			printer := clilog.CliOut{
-				Quiet:  quiet,
-				Prefix: "-> ",
-			}
-
 			file := args[0]
+
+			log, err := logger.GetDefault(logger.GetLogLevel(loglevel))
+			if err != nil {
+				return err
+			}
 
 			absPath, err := filepath.Abs(file)
 			if err != nil {
@@ -74,9 +74,9 @@ func backupCmd() *cobra.Command {
 				return err
 			}
 			if fstat.IsDir() {
-				return backupFromDir(absPath, &printer)
+				return backupFromDir(absPath, log)
 			} else {
-				return backupFromFile(absPath, &printer)
+				return backupFromFile(absPath, log)
 
 			}
 		},
@@ -87,15 +87,15 @@ func backupCmd() *cobra.Command {
 		_ = command.Flags().MarkHidden("pers")
 		command.Parent().HelpFunc()(command, strings)
 	})
-	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "do not print output")
+	cmd.Flags().StringVarP(&loglevel, "loglevel", "l", loglevel, "Set the log level")
 
 	return &cmd
 }
 
-func backupFromFile(absFile string, printer *clilog.CliOut) error {
-	printer.Print(fmt.Sprintf("using file %s", absFile))
+func backupFromFile(absFile string, logger *slog.Logger) error {
+	logger.Info(fmt.Sprintf("using up %s", absFile))
 	runner := goback.BackupRunner{
-		Printer: printer,
+		Logger: logger,
 	}
 
 	err := runner.LoadProfileFile(absFile)
@@ -111,11 +111,11 @@ func backupFromFile(absFile string, printer *clilog.CliOut) error {
 	return nil
 }
 
-func backupFromDir(absPath string, printer *clilog.CliOut) error {
-	printer.Print(fmt.Sprintf("using Dir %s", absPath))
+func backupFromDir(absPath string, logger *slog.Logger) error {
+	logger.Info(fmt.Sprintf("using Dir %s", absPath))
 	// handle a directory containing profiles
 	runner := goback.BackupRunner{
-		Printer: printer,
+		Logger: logger,
 	}
 	err := runner.LoadProfilesDir(absPath)
 	if err != nil {

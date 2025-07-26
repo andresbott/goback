@@ -3,8 +3,8 @@ package goback
 import (
 	"errors"
 	"fmt"
-	"github.com/AndresBott/goback/internal/clilog"
 	"github.com/AndresBott/goback/lib/ssh"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -24,14 +24,14 @@ const dateStr = "2006_02_01-15:04:05"
 
 // BackupRunner is the entry point to the application
 type BackupRunner struct {
-	Printer  *clilog.CliOut
+	Logger   *slog.Logger
 	profiles []profile.Profile
 }
 
 // LoadProfileFile adds a single profile file to the list of profiles to be executed
 func (br *BackupRunner) LoadProfileFile(file string) error {
 
-	br.Printer.Print(fmt.Sprintf("Loading profile from file: \"%s\"", file))
+	br.Logger.Info("Loading profile", "file", file)
 
 	prfl, err := profile.LoadProfile(file)
 	if err != nil {
@@ -44,7 +44,7 @@ func (br *BackupRunner) LoadProfileFile(file string) error {
 // LoadProfilesDir adds all the profiles found in the directory to the list of profiles to be executed
 func (br *BackupRunner) LoadProfilesDir(dir string) error {
 
-	br.Printer.Print(fmt.Sprintf("Loading profiles from dorectory: \"%s\"", dir))
+	br.Logger.Info("Loading profile directory", "dor", dir)
 
 	prfl, err := profile.LoadProfiles(dir)
 	if err != nil {
@@ -63,8 +63,9 @@ func (br *BackupRunner) Run() error {
 
 		// handle copying of files
 		if len(prfl.Dirs) > 0 {
-			br.Printer.Print(fmt.Sprintf("Running backup for profile: \"%s\"", prfl.Name))
-			br.Printer.AddIndent()
+
+			br.Logger.Info("Loading profile", "name", prfl.Name)
+
 			if len(prfl.Dirs) > 0 || len(prfl.Mysql) > 0 {
 				start := time.Now()
 
@@ -75,21 +76,18 @@ func (br *BackupRunner) Run() error {
 						_ = NotifyFailure(prfl.NotifyCfg, err)
 					}
 					capturedErrs = true
-					br.Printer.Print(fmt.Sprintf("[X] Error in backup of profile \"" + prfl.Name + "\": " + err.Error()))
-					br.Printer.RemIndent()
+					br.Logger.Error("Error in backup of profile", "err", err)
 					continue
 				}
 
 				t := time.Now()
 				elapsed := t.Sub(start)
-				br.Printer.Print(fmt.Sprintf("Backup took: \"%s\"", elapsed.String()))
+				br.Logger.Info("Backup duration", "dur", elapsed)
 			}
-			br.Printer.RemIndent()
 		}
 
 		// delete old backup files
-		br.Printer.Print(fmt.Sprintf("Deleting older backups for profile: \"%s\"", prfl.Name))
-		br.Printer.AddIndent()
+		br.Logger.Info("Deleting older backups for profile", "name", prfl.Name)
 
 		err := br.ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
 		if err != nil {
@@ -98,11 +96,9 @@ func (br *BackupRunner) Run() error {
 				_ = NotifyFailure(prfl.NotifyCfg, err)
 			}
 			capturedErrs = true
-			br.Printer.Print(fmt.Sprintf("[X] Error deleting files for profile \"" + prfl.Name + "\": " + err.Error()))
-			br.Printer.RemIndent()
+			br.Logger.Error("Error deleting files for profile", "err", err)
 			continue
 		}
-		br.Printer.RemIndent()
 
 		if prfl.Notify {
 			_ = NotifySuccess(prfl.NotifyCfg)
@@ -172,14 +168,14 @@ func (br *BackupRunner) BackupProfile(prfl profile.Profile) error {
 			_ = sshC.Disconnect()
 		}()
 
-		br.Printer.Print(fmt.Sprintf("Copying data from remote server: \"%s\"", prfl.Remote.Host))
+		//br.Printer.Print(fmt.Sprintf("Copying data from remote server: \"%s\"", prfl.Remote.Host))
 		err = backupSftp(sshC, prfl.Dirs, prfl.Mysql, dest)
 		if err != nil {
 			return fmt.Errorf("error running sftp backup profile: %v", err)
 		}
 
 	} else {
-		br.Printer.Print("Copying local data")
+		//br.Printer.Print("Copying local data")
 		err := backupLocalFs(prfl.Dirs, prfl.Mysql, dest)
 		if err != nil {
 			return fmt.Errorf("error running local profile: %v", err)

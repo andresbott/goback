@@ -73,7 +73,7 @@ func (br BackupRunner) syncBackups(sshc *ssh.Client, remoteOrigin string, localD
 	diff := findDifferentProfiles(remoteFiles, localFile, name)
 
 	for _, f := range diff {
-		br.Printer.Print(fmt.Sprintf("Downloading file: %s", f))
+		br.Logger.Info("Downloading file", "file", f)
 		err = sftpDownload(sftpc, filepath.Join(remoteOrigin, f), filepath.Join(localDestination, f))
 		if err != nil {
 			return fmt.Errorf("unable to donwload file: %s, %v", f, err)
@@ -144,7 +144,7 @@ func backupSftp(sshc *ssh.Client, dirs []profile.BackupDir, dbs []profile.MysqlB
 		return deleteZipErr(dest, err)
 	}
 
-	// dump file systemd data into zip
+	// dump filesystem data into zip
 	for _, bkpDir := range dirs {
 		err := dumpSftp(sshc, bkpDir, zh)
 		if err != nil {
