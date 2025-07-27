@@ -3,12 +3,14 @@ package ssh
 import (
 	"errors"
 	"fmt"
+	"github.com/AndresBott/goback/internal/profile"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type AuthType int
@@ -202,7 +204,7 @@ func (sshc *Client) Connect() error {
 	return nil
 }
 
-func GetAuthType(in string) AuthType {
+func GetAuthType(in profile.AuthType) AuthType {
 	switch in {
 	case "sshPassword":
 		return Password
@@ -217,8 +219,7 @@ func GetAuthType(in string) AuthType {
 
 func (sshc *Client) Disconnect() error {
 	if sshc.agentConn != nil {
-		sshc.agentConn.Close()
-
+		_ = sshc.agentConn.Close()
 	}
 
 	err := sshc.conn.Close()
@@ -241,4 +242,26 @@ func (sshc *Client) Session() (*ssh.Session, error) {
 		return nil, fmt.Errorf("create session for %v failed %v", sshc.server, err)
 	}
 	return session, nil
+}
+
+// Which identifies the path of a binary in the path on the remote machine.
+func (sshc *Client) Which(app string) (string, error) {
+	s, err := sshc.Session()
+	if err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+	defer s.Close()
+
+	cmd := fmt.Sprintf("which %s", app)
+	output, err := s.CombinedOutput(cmd)
+
+	if err != nil {
+		var exitErr *ssh.ExitError
+		if errors.As(err, &exitErr) {
+			return "", fmt.Errorf("command '%s' failed with exit code %d", cmd, exitErr.ExitStatus())
+		}
+		return "", fmt.Errorf("SSH error running '%s': %w", cmd, err)
+	}
+
+	return strings.Trim(string(output), " \n"), nil
 }

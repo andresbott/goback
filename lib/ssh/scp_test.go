@@ -11,7 +11,7 @@ import (
 )
 
 func TestScpActions(t *testing.T) {
-	skipIfCi(t) // skip test if running in CI
+	skipInCI(t) // skip test if running in CI
 
 	// since git will drop empty folders, we create if as part of the test
 	if _, err := os.Stat("./sampledata/dir/empty"); os.IsNotExist(err) {

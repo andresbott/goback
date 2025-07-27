@@ -10,14 +10,6 @@ import (
 	"strings"
 )
 
-type RemoteType string
-
-const (
-	Password   = "sshPassword"
-	PrivateKey = "sshKey"
-	SshAgent   = "sshAgent"
-)
-
 // check if all the notification fields are of type default zero
 func (m EmailNotify) isEmpty() bool {
 	if m.Host != "" ||
@@ -64,9 +56,9 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	if p.Remote.RemoteType != "" {
-		t := p.Remote.RemoteType
-		if t != Password && t != PrivateKey && t != SshAgent {
+	if p.Remote.AuthType != "" {
+		t := p.Remote.AuthType
+		if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
 			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
 		}
 		if p.Remote.Host == "" {
@@ -79,7 +71,6 @@ func LoadProfile(file string) (Profile, error) {
 		if ret.Remote.Port == "" {
 			ret.Remote.Port = getDefaultPort(t)
 		}
-
 	}
 
 	// check notification config
@@ -107,9 +98,9 @@ func LoadProfile(file string) (Profile, error) {
 	return ret, nil
 }
 
-func getDefaultPort(in string) string {
+func getDefaultPort(in AuthType) string {
 	switch in {
-	case Password, PrivateKey, SshAgent:
+	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
 		return "22"
 	default:
 		return ""

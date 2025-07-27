@@ -19,8 +19,16 @@ type MysqlBackup struct {
 	Pw     string
 }
 
+type AuthType string
+
+const (
+	RemotePassword   AuthType = "sshPassword"
+	RemotePrivateKey AuthType = "sshKey"
+	RemoteSshAgent   AuthType = "sshAgent"
+)
+
 type RemoteCfg struct {
-	RemoteType string `yaml:"type"`
+	AuthType   AuthType `yaml:"type"`
 	Host       string
 	Port       string
 	User       string

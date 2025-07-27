@@ -1,10 +1,11 @@
-package localbackup
+package goback
 
 import (
+	"testing"
+
 	"github.com/AndresBott/goback/internal/profile"
 	"github.com/gobwas/glob"
 	"github.com/google/go-cmp/cmp"
-	"testing"
 )
 
 type fileAppender struct {
@@ -19,11 +20,8 @@ func (a *fileAppender) AddSymlink(origin string, dest string) error {
 	a.files = append(a.files, dest)
 	return nil
 }
-func getGlob(in string) glob.Glob {
-	return glob.MustCompile(in)
-}
 
-func TestDumpFileSystem(t *testing.T) {
+func TestCopyLocalFiles(t *testing.T) {
 
 	tcs := []struct {
 		name    string
@@ -104,22 +102,13 @@ func TestDumpFileSystem(t *testing.T) {
 				"files/notRoot/link",
 			},
 		},
-		{
-			name: "backup a file",
-			profile: profile.BackupDir{
-				Root: "sampledata/files/dir1/file.json",
-			},
-			want: []string{
-				"file.json",
-			},
-		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 
 			fa := fileAppender{}
-			err := CopyFiles(tc.profile, &fa)
+			err := copyLocalFiles(tc.profile, &fa)
 			got := fa.files
 
 			if err != nil {
@@ -132,4 +121,8 @@ func TestDumpFileSystem(t *testing.T) {
 
 		})
 	}
+}
+
+func TestCopyRemoteFiles(t *testing.T) {
+
 }

@@ -9,27 +9,10 @@ import (
 	"path/filepath"
 )
 
-// dumpDatabases iterates over multiple mysql profiles and tries to dump all the databases into the current zip file
-func dumpDatabases(dbProfiles []profile.MysqlBackup, zip *zip.Handler) error {
-	// check for mysqldump installed
-	binPath, err := mysqldump.GetBinPath()
-	if err != nil {
-		return err
-	}
-
-	for _, dbPrfl := range dbProfiles {
-		err := dumpDb(binPath, dbPrfl, zip)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // dump a single database into a zip handler
-func dumpDb(binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error {
+func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.Handler) error {
 
-	h, err := mysqldump.New(mysqldump.Cfg{
+	dbHandler, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,
 		User:    dbPrfl.User,
 		Pw:      dbPrfl.Pw,
@@ -40,31 +23,18 @@ func dumpDb(binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error 
 		return err
 	}
 
-	zlipWriter, err := zip.FileWriter(filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
+	zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
 	if err != nil {
 		return err
 	}
-	err = h.Exec(zlipWriter)
+	err = dbHandler.Exec(zipWriter)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// dumpDatabases iterates over multiple mysql profiles and tries to dump all the databases into the current zip file
-func dumpSshDatabases(sshc *ssh.Client, dbProfiles []profile.MysqlBackup, zip *zip.Handler) error {
-
-	// rely on mysldump to be installed on $PATH
-	for _, dbPrfl := range dbProfiles {
-		err := dumpSshDb(sshc, "mysqldump", dbPrfl, zip)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func dumpSshDb(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error {
+func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error {
 	h, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,
 		User:    dbPrfl.User,
@@ -79,6 +49,7 @@ func dumpSshDb(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip
 	if err != nil {
 		return fmt.Errorf("unable to create ssh session: %v", err)
 	}
+	defer sess.Close()
 
 	outPipe, err := sess.StdoutPipe()
 	if err != nil {

@@ -19,9 +19,7 @@ __check_defined = \
 
 default: help
 
-status: ## get info about the project
-	@echo "current commit: ${COMMIT_SHA_SHORT}"
-
+##@ Test
 fmt: ## format go code and run mod tidy
 	@go fmt ./...
 	@go mod tidy
@@ -30,16 +28,25 @@ fmt: ## format go code and run mod tidy
 test: ## run go tests
 	@go test ./... -cover
 
+test-long: ## run go tests, long run
+	@RUN_TESTCONTAINERS=true go test ./... -cover
+
 lint: ## run go linter
 	@golangci-lint run
 
-verify: fmt test benchmark lint ## run all verification and code structure tiers
+verify: fmt test-long lint ## run all verification and code structure tiers
 
-benchmark: ## run go benchmarks
-	@go test -run=^$$ -bench=. ./...
 
+##@ Build
 build: ## builds a snapshot build using goreleaser
 	@goreleaser --snapshot --rm-dist
+
+
+clean: ## clean the build environment
+	@rm -rf ./dist
+
+
+##@ Release
 
 release: verify ## release a new version, call with version="v1.2.3", make sure to have valid GH token
 	@:$(call check_defined, version, "version defined: call with version=\"v1.2.3\"")
@@ -51,9 +58,8 @@ release: verify ## release a new version, call with version="v1.2.3", make sure 
 	@git push origin $(version)
 	@goreleaser --rm-dist
 
-clean: ## clean the build environment
-	@rm -rf ./dist
 
-help: ## help command
-	@egrep '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST)  | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
-
+##@ Help
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

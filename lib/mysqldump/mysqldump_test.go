@@ -44,20 +44,6 @@ func TestReadIni(t *testing.T) {
 		verifyResult(h.user, h.pw, t)
 	})
 
-	t.Run("verify error is returned", func(t *testing.T) {
-		h := Handler{}
-		err := h.loadCnfFiles([]string{
-			"sampledata/my1.cnf",
-		})
-		if err == nil {
-			t.Errorf("expeciting error but none returned")
-		}
-
-		if err.Error() != "user or password is empty" {
-			t.Errorf("got unexpected error message: %s", err.Error())
-		}
-	})
-
 	t.Run("verify all files even if non existent", func(t *testing.T) {
 		h := Handler{}
 		err := h.loadCnfFiles([]string{

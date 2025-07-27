@@ -2,6 +2,8 @@ package ssh
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"testing"
@@ -11,10 +13,11 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func skipIfCi(t *testing.T) {
-	skip := os.Getenv("SKIP_CI_TEST")
-	if skip == "true" {
-		t.Skip("skipping because env \"SKIP_CI_TEST\"  is set to true")
+// skipInCI will skip the test if the ENV RUN_TESTCONTAINERS is not set
+func skipInCI(t *testing.T) {
+	envSet := os.Getenv("RUN_TESTCONTAINERS")
+	if envSet == "" {
+		t.Skip("skipping because env \"RUN_TESTCONTAINERS\" is not set to true")
 	}
 }
 
@@ -30,8 +33,9 @@ func setupContainer(ctx context.Context) (*sshContainer, error) {
 
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
-			Context:    "./sampledata",
-			Dockerfile: "Dockerfile",
+			Context:       "./sampledata",
+			Dockerfile:    "Dockerfile",
+			PrintBuildLog: false, // set this to true to troubleshoot docker build issues
 		},
 		ExposedPorts: []string{"22/tcp"},
 		WaitingFor: wait.ForAll(
@@ -47,14 +51,13 @@ func setupContainer(ctx context.Context) (*sshContainer, error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
-
 	if err != nil {
 		return nil, err
 	}
 
-	//losg,_ := container.Logs(ctx)
-	//lines,_ := io.ReadAll(losg)
-	//fmt.Println(string(lines))
+	losg, _ := container.Logs(ctx)
+	lines, _ := io.ReadAll(losg)
+	fmt.Println(string(lines))
 
 	ip, err := container.Host(ctx)
 	if err != nil {
@@ -78,7 +81,7 @@ func setupContainer(ctx context.Context) (*sshContainer, error) {
 }
 
 func TestSshConnect(t *testing.T) {
-	skipIfCi(t) // skip test if running in CI
+	skipInCI(t) // skip test if running in CI
 
 	ctx := context.Background()
 	sshServer, err := setupContainer(ctx)
@@ -165,4 +168,99 @@ func TestSshConnect(t *testing.T) {
 			t.Errorf("output mismatch (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func TestClient_Which(t *testing.T) {
+	skipInCI(t) // skip test if running in CI
+
+	ctx := context.Background()
+	sshServer, err := setupContainer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = sshServer.Terminate(ctx)
+	}()
+
+	tests := []struct {
+		name    string
+		cfg     Cfg
+		app     string
+		wantErr string
+	}{
+		{
+			name: "which bash using password",
+			cfg: Cfg{
+				Host:          sshServer.host,
+				Port:          sshServer.port,
+				Auth:          Password,
+				User:          "pwuser",
+				Password:      "1234",
+				IgnoreHostKey: true,
+			},
+			app: "bash",
+		},
+		{
+			name: "which bash using private key",
+			cfg: Cfg{
+				Host:          sshServer.host,
+				Port:          sshServer.port,
+				Auth:          PrivateKey,
+				User:          "privkey",
+				PrivateKey:    "./sampledata/private.key",
+				PassPhrase:    "pass",
+				IgnoreHostKey: true,
+			},
+			app: "bash",
+		},
+
+		{
+			name: "Want an error",
+			cfg: Cfg{
+				Host:          sshServer.host,
+				Port:          sshServer.port,
+				Auth:          PrivateKey,
+				User:          "privkey",
+				PrivateKey:    "./sampledata/private.key",
+				PassPhrase:    "pass",
+				IgnoreHostKey: true,
+			},
+			app:     "nonexistent",
+			wantErr: "command 'which nonexistent' failed with exit code 1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cl, err := New(tc.cfg)
+			if err != nil {
+				t.Fatalf("unexpected error %v", err)
+			}
+
+			err = cl.Connect()
+			if err != nil {
+				t.Fatalf("failed to connect: %v", err)
+			}
+			defer cl.Disconnect()
+
+			got, err := cl.Which(tc.app)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				if err.Error() != tc.wantErr {
+					t.Errorf("expected error %v, got %v", tc.wantErr, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Which() returned error: %v", err)
+				}
+
+				if got != "/usr/bin/bash" {
+					t.Errorf("Which() returned: %v, expected /usr/bin/bash", got)
+				}
+			}
+
+		})
+	}
 }

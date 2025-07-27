@@ -3,6 +3,7 @@ package goback
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,7 +14,7 @@ import (
 )
 
 // ExpurgeDir deletes all the older backups keeping N older versions of a specific backup profile name
-func (br *BackupRunner) ExpurgeDir(path string, keepN int, name string) error {
+func ExpurgeDir(path string, keepN int, name string, log *slog.Logger) error {
 
 	pathInfo, err := os.Stat(path)
 	if err != nil {
@@ -43,7 +44,7 @@ func (br *BackupRunner) ExpurgeDir(path string, keepN int, name string) error {
 	}
 
 	for _, file := range filesToDelete {
-		br.Logger.Info("Deleting old backup", "file", file)
+		log.Info("Deleting old backup", "file", file)
 		e := os.Remove(filepath.Join(path, file))
 		if e != nil {
 			return fmt.Errorf("unable to delete old zip file: %v", e)

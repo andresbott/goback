@@ -1,6 +1,7 @@
 package goback
 
 import (
+	"github.com/AndresBott/goback/app/logger"
 	"log"
 	"os"
 	"path/filepath"
@@ -38,9 +39,7 @@ func TestExpurgeDir(t *testing.T) {
 	createFile(filepath.Join(dir, "blib_2006_02_05-17:04:05_backup.zip"))
 	createFile(filepath.Join(dir, "name_2008_02_05-17:04:05_backup.zip"))
 
-	br := BackupRunner{}
-
-	err := br.ExpurgeDir(dir, 1, "blib")
+	err := ExpurgeDir(dir, 1, "blib", logger.SilentLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

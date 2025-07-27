@@ -28,12 +28,12 @@ func NewScp(conn *ssh.Client) (*ScpClient, error) {
 }
 
 // WalkDir is a re-implementation of filepath.WalkDir over ssh
-func (scpc *Client) WalkDir(root string, fn WalkFunc) error {
-	info, err := scpc.Stat(root)
+func (sshc *Client) WalkDir(root string, fn WalkFunc) error {
+	info, err := sshc.Stat(root)
 	if err != nil {
 		err = fn(root, nil, err)
 	} else {
-		err = scpc.walkDir(root, &info, fn)
+		err = sshc.walkDir(root, &info, fn)
 	}
 	if err == SkipDir {
 		return nil
@@ -42,7 +42,7 @@ func (scpc *Client) WalkDir(root string, fn WalkFunc) error {
 }
 
 // walkDir recursively descends path, calling walkDirFn.
-func (scpc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
+func (sshc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 	// call the user fn
 	if err := userFn(path, d, nil); err != nil || !d.IsDir() {
 		if err == SkipDir && d.IsDir() {
@@ -54,7 +54,7 @@ func (scpc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 		return err
 	}
 
-	dirs, err := scpc.readDir(path)
+	dirs, err := sshc.readDir(path)
 	if err != nil {
 		// Second call, to report ReadDir error, and allow the user func handle the error
 		err = userFn(path, d, err)
@@ -66,7 +66,7 @@ func (scpc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 	for _, d1 := range dirs {
 
 		path1 := filepath.Join(path, d1.Name())
-		if err := scpc.walkDir(path1, d1, userFn); err != nil {
+		if err := sshc.walkDir(path1, d1, userFn); err != nil {
 			if err == SkipDir {
 				break
 			}
@@ -77,9 +77,9 @@ func (scpc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 }
 
 // Stat returns a FileInfo describing the named file from the file system.
-func (scpc *Client) Stat(name string) (FileStat, error) {
+func (sshc *Client) Stat(name string) (FileStat, error) {
 
-	session, err := scpc.Session()
+	session, err := sshc.Session()
 	if err != nil {
 		return FileStat{}, err
 	}
@@ -103,21 +103,21 @@ func (scpc *Client) Stat(name string) (FileStat, error) {
 
 // ReadDir reads the directory named by dirname and returns
 // a list of directory entries.
-func (scpc *Client) ReadDir(name string) ([]FileStat, error) {
+func (sshc *Client) ReadDir(name string) ([]FileStat, error) {
 
-	fs, err := scpc.Stat(name)
+	fs, err := sshc.Stat(name)
 	if err != nil {
 		return nil, err
 	}
 	if !fs.isDir {
 		return nil, errors.New("passed path is not a directory")
 	}
-	return scpc.readDir(name)
+	return sshc.readDir(name)
 }
 
 // readDir is an internal implementation that does not verify that the passed path is indeed a directory
-func (scpc *Client) readDir(name string) ([]FileStat, error) {
-	sess, err := scpc.Session()
+func (sshc *Client) readDir(name string) ([]FileStat, error) {
+	sess, err := sshc.Session()
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (scpc *Client) readDir(name string) ([]FileStat, error) {
 	if err != nil {
 		// this command does not allow to verify if the folder is empty or not
 		// hence if this stat fails we check for empty dir
-		sess2, err2 := scpc.Session()
+		sess2, err2 := sshc.Session()
 		if err2 != nil {
 			return nil, err2
 		}

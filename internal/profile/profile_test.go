@@ -57,7 +57,7 @@ func TestLoadProfile(t *testing.T) {
 				Name:     "remote",
 				IsRemote: true,
 				Remote: RemoteCfg{
-					RemoteType: "sshPassword",
+					AuthType:   "sshPassword",
 					Host:       "bla.ble.com",
 					Port:       "22",
 					User:       "user",
@@ -79,9 +79,6 @@ func TestLoadProfile(t *testing.T) {
 						User:   "user",
 						Pw:     "pw",
 					},
-				},
-				SyncBackup: SyncCfg{
-					RemotePath: "/bla",
 				},
 				Destination: "/backups",
 				Keep:        3,

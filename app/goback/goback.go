@@ -3,7 +3,9 @@ package goback
 import (
 	"errors"
 	"fmt"
+	"github.com/AndresBott/goback/lib/mysqldump"
 	"github.com/AndresBott/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/zip"
 	"log/slog"
 	"os"
 	"os/user"
@@ -13,10 +15,6 @@ import (
 
 	"github.com/AndresBott/goback/internal/profile"
 )
-
-type Printer interface {
-	Print(msg string)
-}
 
 // date string used to format the backup profiles
 // resulting profiles will be <name>_2006_02_01-15:04:05_backup.zip
@@ -57,55 +55,56 @@ func (br *BackupRunner) LoadProfilesDir(dir string) error {
 // Run executes all the profiles loaded
 func (br *BackupRunner) Run() error {
 
-	capturedErrs := false
+	hadErr := false
 
 	for _, prfl := range br.profiles {
 
-		// handle copying of files
-		if len(prfl.Dirs) > 0 {
+		br.Logger.Info("Loading profile", "name", prfl.Name)
+		start := time.Now()
 
-			br.Logger.Info("Loading profile", "name", prfl.Name)
-
-			if len(prfl.Dirs) > 0 || len(prfl.Mysql) > 0 {
-				start := time.Now()
-
-				err := br.BackupProfile(prfl)
-				if err != nil {
-					if prfl.Notify {
-						// ignore notification error
-						_ = NotifyFailure(prfl.NotifyCfg, err)
-					}
-					capturedErrs = true
-					br.Logger.Error("Error in backup of profile", "err", err)
-					continue
-				}
-
-				t := time.Now()
-				elapsed := t.Sub(start)
-				br.Logger.Info("Backup duration", "dur", elapsed)
-			}
-		}
-
-		// delete old backup files
-		br.Logger.Info("Deleting older backups for profile", "name", prfl.Name)
-
-		err := br.ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name)
+		// run backup
+		err := BackupProfile(prfl, br.Logger, getZipName(prfl.Name))
 		if err != nil {
+			hadErr = true
+			br.Logger.Error("Error in backup of profile", "err", err)
 			if prfl.Notify {
-				// ignore notification error
-				_ = NotifyFailure(prfl.NotifyCfg, err)
+				err2 := NotifyFailure(prfl.NotifyCfg, err)
+				if err2 != nil {
+					br.Logger.Error("Error while sending notification", "err", err)
+				}
 			}
-			capturedErrs = true
-			br.Logger.Error("Error deleting files for profile", "err", err)
 			continue
 		}
 
+		t := time.Now()
+		elapsed := t.Sub(start)
+		br.Logger.Info("Backup duration", "dur", elapsed)
+
+		// delete old backup files
+		br.Logger.Info("Deleting older backups for profile", "name", prfl.Name)
+		err = ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name, br.Logger)
+		if err != nil {
+			hadErr = true
+			br.Logger.Error("Error deleting files for profile", "err", err)
+			if prfl.Notify {
+				err2 := NotifyFailure(prfl.NotifyCfg, err)
+				if err2 != nil {
+					br.Logger.Error("Error while sending notification", "err", err)
+				}
+			}
+			continue
+		}
+
+		// notify about completion
 		if prfl.Notify {
-			_ = NotifySuccess(prfl.NotifyCfg)
+			err2 := NotifySuccess(prfl.NotifyCfg)
+			if err2 != nil {
+				br.Logger.Error("Error while sending notification", "err", err)
+			}
 		}
 	}
 
-	if capturedErrs {
+	if hadErr {
 		return errors.New("at least one profile execution was not successful")
 	}
 	return nil
@@ -113,11 +112,16 @@ func (br *BackupRunner) Run() error {
 
 // BackupProfile takes a single profile as input and generates a single Zip backup as output
 // the sources of backup can be either local fs or sftp connection
-func (br *BackupRunner) BackupProfile(prfl profile.Profile) error {
-	// check if destination dir exists
+func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error {
+
+	if len(prfl.Dirs) <= 0 && len(prfl.Mysql) <= 0 {
+		log.Warn("Nothing to backup, skipping.")
+		return nil
+	}
+
+	// check if destination dir exists, or create
 	fInfo, err := os.Stat(prfl.Destination)
 	if err != nil {
-		// create dir if it does not exists
 		if errors.Is(err, os.ErrNotExist) {
 			mkdirErr := os.Mkdir(prfl.Destination, 0750)
 			if mkdirErr != nil {
@@ -131,54 +135,21 @@ func (br *BackupRunner) BackupProfile(prfl profile.Profile) error {
 			return fmt.Errorf("unable to stat destination: %v", err)
 		}
 	}
-
 	if !fInfo.IsDir() {
 		return errors.New("the output path is not a directory")
 	}
-
-	dest := filepath.Join(prfl.Destination, getZipName(prfl.Name))
+	dest := filepath.Join(prfl.Destination, zipName)
 
 	// handle file backup
 	if prfl.IsRemote {
-
-		port, err := strconv.Atoi(prfl.Remote.Port)
+		err = backupRemote(prfl, dest)
 		if err != nil {
-			return fmt.Errorf("error parsisng port: %v", err)
+			return delZipAndErr(dest, err)
 		}
-
-		sshC, err := ssh.New(ssh.Cfg{
-			Host:          prfl.Remote.Host,
-			Port:          port,
-			Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
-			User:          prfl.Remote.User,
-			Password:      prfl.Remote.Password,
-			PrivateKey:    prfl.Remote.PrivateKey,
-			PassPhrase:    prfl.Remote.PassPhrase,
-			IgnoreHostKey: false, // no need to expose this for the moment
-		})
-
-		if err != nil {
-			return fmt.Errorf("error creating ssh client: %v", err)
-		}
-		err = sshC.Connect()
-		if err != nil {
-			return fmt.Errorf("error connecting ssh: %v", err)
-		}
-		defer func() {
-			_ = sshC.Disconnect()
-		}()
-
-		//br.Printer.Print(fmt.Sprintf("Copying data from remote server: \"%s\"", prfl.Remote.Host))
-		err = backupSftp(sshC, prfl.Dirs, prfl.Mysql, dest)
-		if err != nil {
-			return fmt.Errorf("error running sftp backup profile: %v", err)
-		}
-
 	} else {
-		//br.Printer.Print("Copying local data")
-		err := backupLocalFs(prfl.Dirs, prfl.Mysql, dest)
+		err = backupLocal(prfl, dest)
 		if err != nil {
-			return fmt.Errorf("error running local profile: %v", err)
+			return delZipAndErr(dest, err)
 		}
 	}
 
@@ -200,10 +171,112 @@ func (br *BackupRunner) BackupProfile(prfl profile.Profile) error {
 	return nil
 }
 
-// deleteZipErr deletes the incomplete zip file in case onf an error, and returns the error
-// if the delete opeation fails a new error is created that states both problems
-func deleteZipErr(dest string, err error) error {
-	//try to delete the zip file
+// backupLocal will run all the backup steps when running on the same machine
+func backupLocal(prfl profile.Profile, zipDestination string) error {
+
+	zipHandler, err := zip.New(zipDestination)
+	if err != nil {
+		return err
+	}
+
+	// copy files into the zip
+	for _, bkpDir := range prfl.Dirs {
+		err = copyLocalFiles(bkpDir, zipHandler)
+		if err != nil {
+			return err
+		}
+	}
+
+	// dump mysql DBs into the zip
+	if len(prfl.Mysql) > 0 {
+
+		// check for mysqldump installed
+		binPath, err := mysqldump.GetBinPath()
+		if err != nil {
+			return err
+		}
+
+		for _, db := range prfl.Mysql {
+			err := copyLocalMysql(binPath, db, zipHandler)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// close the zip file at the end
+	zipHandler.Close()
+	return nil
+}
+
+// exposed internally for testing purposes only
+var ignoreHostKey = false
+
+// backupRemote will open an ssh connection to a remote location and run copy of files and dbs
+func backupRemote(prfl profile.Profile, dest string) error {
+	port, err := strconv.Atoi(prfl.Remote.Port)
+	if err != nil {
+		return fmt.Errorf("error parsisng port: %v", err)
+	}
+
+	sshC, err := ssh.New(ssh.Cfg{
+		Host:          prfl.Remote.Host,
+		Port:          port,
+		Auth:          ssh.GetAuthType(prfl.Remote.AuthType),
+		User:          prfl.Remote.User,
+		Password:      prfl.Remote.Password,
+		PrivateKey:    prfl.Remote.PrivateKey,
+		PassPhrase:    prfl.Remote.PassPhrase,
+		IgnoreHostKey: ignoreHostKey, // set to false and only exposed for testing
+	})
+
+	if err != nil {
+		return fmt.Errorf("error creating ssh client: %v", err)
+	}
+	err = sshC.Connect()
+	if err != nil {
+		return fmt.Errorf("error connecting ssh: %v", err)
+	}
+	defer func() {
+		_ = sshC.Disconnect()
+	}()
+
+	zipHandler, err := zip.New(dest)
+	if err != nil {
+		return err
+	}
+
+	// dump filesystem data into zip
+	for _, bkpDir := range prfl.Dirs {
+		err := copyRemoteFiles(sshC, bkpDir, zipHandler)
+		if err != nil {
+			return err
+		}
+	}
+
+	// dump mysql DBs into the zip
+	if len(prfl.Mysql) > 0 {
+		binPath, err := sshC.Which("mysqldump")
+		if err != nil {
+			return fmt.Errorf("error checking mysql binary: %v", err)
+		}
+		for _, db := range prfl.Mysql {
+			err := copyRemoteMysql(sshC, binPath, db, zipHandler)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// close the zip file at the end
+	zipHandler.Close()
+	return nil
+}
+
+// delZipAndErr deletes the incomplete zip file in case onf an error, and returns the error
+// if the delete operation fails a new error is created that states both problems
+func delZipAndErr(dest string, err error) error {
+	//try to delete the temp zip file
 	e := os.Remove(dest)
 	if e != nil {
 		return fmt.Errorf("unable to delete incomplete zip file due to: %v while handling error: %v", e, err)

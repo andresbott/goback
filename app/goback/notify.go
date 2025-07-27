@@ -14,6 +14,7 @@ func NotifySuccess(cfg profile.EmailNotify) error {
 
 	return send(cfg, []byte(s.String()))
 }
+
 func NotifyFailure(cfg profile.EmailNotify, err error) error {
 
 	var s strings.Builder

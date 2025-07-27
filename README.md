@@ -66,8 +66,11 @@ mysql:
 ## Roadmap
 
 * backup git repositories
+* backuo github orgs
+* allow to use envs placeholders in profiles, e.g. for secrets
 * write documentation
 * exclude folders that contain .nobackup
+* improve the expurge rules to keep N yearly, monthly etc
 
 #### TODO
 * use systemd timers instead of cron

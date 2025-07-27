@@ -26,7 +26,7 @@ defer cl.Disconnect()
 
 // get a session
 session, _ := s.Session()
-// close the session, only one operation allowed per session
+// close the session, only one operation allowed per session because it's not interactive
 defer session.Close()
 
 // run command and capture stdout/stderr
