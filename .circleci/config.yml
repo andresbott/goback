@@ -12,7 +12,7 @@ jobs:
       - checkout
       - run:
           name: "run tests "
-          command: "make verify"
+          command: "make ci"
 
 
 # Invoke jobs via workflows

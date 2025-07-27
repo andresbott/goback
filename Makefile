@@ -36,6 +36,7 @@ lint: ## run go linter
 
 verify: fmt test-long lint ## run all verification and code structure tiers
 
+ci: fmt test lint
 
 ##@ Build
 build: ## builds a snapshot build using goreleaser
