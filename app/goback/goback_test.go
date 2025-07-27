@@ -339,7 +339,9 @@ func TestBackupProfile_remote(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer sshServer.Terminate(ctx)
+	defer func() {
+		_ = sshServer.Terminate(ctx)
+	}()
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
@@ -387,7 +389,9 @@ func listFilesInZip(in string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open: %s", err)
 	}
-	defer read.Close()
+	defer func() {
+		_ = read.Close()
+	}()
 
 	files := []string{}
 	for _, file := range read.File {

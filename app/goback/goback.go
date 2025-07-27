@@ -120,14 +120,55 @@ func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error
 	}
 
 	// check if destination dir exists, or create
-	fInfo, err := os.Stat(prfl.Destination)
+	err := prepDest(prfl.Destination)
+	if err != nil {
+		return err
+	}
+	destZip := filepath.Join(prfl.Destination, zipName)
+
+	// handle file backup
+	if prfl.IsRemote {
+		err = backupRemote(prfl, destZip)
+		if err != nil {
+			return delZipAndErr(destZip, err)
+		}
+	} else {
+		err = backupLocal(prfl, destZip)
+		if err != nil {
+			return delZipAndErr(destZip, err)
+		}
+	}
+
+	// change file ownership
+	if prfl.Owner != "" {
+		err := chown(destZip, prfl.Owner)
+		if err != nil {
+			return fmt.Errorf("unable to change owner of file: \"%s\", %v", destZip, err)
+		}
+	}
+
+	// change file mode
+	if prfl.Mode != "" {
+		err := chmod(destZip, prfl.Mode)
+		if err != nil {
+			return fmt.Errorf("unable to change perm of file: \"%s\", %v", destZip, err)
+		}
+	}
+	return nil
+}
+
+// prepDest will create the destination if it does not exist
+//
+//nolint:nestif // accepted error handling
+func prepDest(dest string) error {
+	fInfo, err := os.Stat(dest)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			mkdirErr := os.Mkdir(prfl.Destination, 0750)
+			mkdirErr := os.Mkdir(dest, 0750)
 			if mkdirErr != nil {
 				return fmt.Errorf("unable to create backup destination: %v", err)
 			}
-			fInfo, err = os.Stat(prfl.Destination)
+			fInfo, err = os.Stat(dest)
 			if err != nil {
 				return fmt.Errorf("unable to stat destination: %v", err)
 			}
@@ -137,36 +178,6 @@ func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error
 	}
 	if !fInfo.IsDir() {
 		return errors.New("the output path is not a directory")
-	}
-	dest := filepath.Join(prfl.Destination, zipName)
-
-	// handle file backup
-	if prfl.IsRemote {
-		err = backupRemote(prfl, dest)
-		if err != nil {
-			return delZipAndErr(dest, err)
-		}
-	} else {
-		err = backupLocal(prfl, dest)
-		if err != nil {
-			return delZipAndErr(dest, err)
-		}
-	}
-
-	// change file ownership
-	if prfl.Owner != "" {
-		err := chown(dest, prfl.Owner)
-		if err != nil {
-			return fmt.Errorf("unable to change owner of file: \"%s\", %v", dest, err)
-		}
-	}
-
-	// change file mode
-	if prfl.Mode != "" {
-		err := chmod(dest, prfl.Mode)
-		if err != nil {
-			return fmt.Errorf("unable to change perm of file: \"%s\", %v", dest, err)
-		}
 	}
 	return nil
 }
@@ -308,12 +319,12 @@ func chown(file string, owner string) error {
 }
 
 func chmod(file string, mode string) error {
-	octal, err := strconv.ParseInt(mode, 8, 64)
+	octal, err := strconv.ParseUint(mode, 8, 32)
 	if err != nil {
 		return fmt.Errorf("type conversion: %v", err)
 	}
 
-	err = os.Chmod(file, os.FileMode(octal))
+	err = os.Chmod(file, os.FileMode(uint32(octal))) // safe cast
 	if err != nil {
 		return fmt.Errorf("chmod failed: %v", err)
 	}

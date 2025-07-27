@@ -18,7 +18,7 @@ func (m EmailNotify) isEmpty() bool {
 		m.Password != "" {
 		return false
 	}
-	if m.To != nil && len(m.To) > 0 {
+	if len(m.To) > 0 {
 		return false
 	}
 	return true
@@ -32,6 +32,7 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, errors.New("profile path is not a .yaml file")
 	}
 
+	// #nosec G304 -- file path is only unmarshalled into yaml
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return Profile{}, err

@@ -1,11 +1,13 @@
 package goback
 
 import (
+	"errors"
 	"fmt"
 	"github.com/AndresBott/goback/internal/profile"
 	"github.com/AndresBott/goback/lib/mysqldump"
 	"github.com/AndresBott/goback/lib/ssh"
 	"github.com/AndresBott/goback/lib/zip"
+	"io"
 	"path/filepath"
 )
 
@@ -34,7 +36,7 @@ func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.
 	return nil
 }
 
-func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) error {
+func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) (err error) {
 	h, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,
 		User:    dbPrfl.User,
@@ -42,14 +44,19 @@ func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBacku
 		DbName:  dbPrfl.DbName,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("nable to create mysqldump wrapper: %v", err)
 	}
 
 	sess, err := sshc.Session()
 	if err != nil {
 		return fmt.Errorf("unable to create ssh session: %v", err)
 	}
-	defer sess.Close()
+	defer func() {
+		// we ignore the EOF error on close since it is expected if session was closed by wait()
+		if cErr := sess.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
+			err = errors.Join(err, cErr)
+		}
+	}()
 
 	outPipe, err := sess.StdoutPipe()
 	if err != nil {

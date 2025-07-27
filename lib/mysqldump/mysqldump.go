@@ -92,23 +92,32 @@ func (h *Handler) getCmd() (string, []string) {
 
 	var args []string
 	if h.user != "" {
-		args = append(args, "-u", h.user)
+		args = append(args, "-u", sanitizeString(h.user))
 	}
 	if h.pw != "" {
-		args = append(args, "-p"+h.pw)
+		args = append(args, "-p"+sanitizeString(h.pw))
 	}
 	args = append(args,
 		"--add-drop-database",
 		"--databases",
-		h.dbName,
+		sanitizeString(h.dbName),
 	)
 	return h.binPath, args
+}
+
+func sanitizeString(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, " ", "_")
+	s = strings.ReplaceAll(s, "\n", "_")
+	s = strings.ReplaceAll(s, "\r", "_")
+	return s
 }
 
 // Exec will execute mysqldump and write the output into the passed writer
 func (h *Handler) Exec(w io.Writer) error {
 
 	bin, args := h.getCmd()
+	// #nosec G204 -- bin and args are validated
 	cmd := exec.Command(bin, args...)
 
 	stdoutPipe, err := cmd.StdoutPipe()

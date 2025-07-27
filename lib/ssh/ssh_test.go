@@ -110,13 +110,18 @@ func TestSshConnect(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}
-		defer cl.Disconnect()
+
+		defer func() {
+			_ = cl.Disconnect()
+		}()
 
 		session, err := cl.Session()
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}
-		defer session.Close()
+		defer func() {
+			_ = session.Close()
+		}()
 
 		got, err := session.CombinedOutput("pwd")
 		if err != nil {
@@ -149,13 +154,17 @@ func TestSshConnect(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}
-		defer cl.Disconnect()
+		defer func() {
+			_ = cl.Disconnect()
+		}()
 
 		session, err := cl.Session()
 		if err != nil {
 			t.Fatalf("unexpected error %v", err)
 		}
-		defer session.Close()
+		defer func() {
+			_ = session.Close()
+		}()
 
 		got, err := session.CombinedOutput("pwd")
 		if err != nil {
@@ -241,7 +250,9 @@ func TestClient_Which(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to connect: %v", err)
 			}
-			defer cl.Disconnect()
+			defer func() {
+				_ = cl.Disconnect()
+			}()
 
 			got, err := cl.Which(tc.app)
 			if tc.wantErr != "" {

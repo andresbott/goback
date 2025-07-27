@@ -103,13 +103,15 @@ func copyLocalFiles(dir profile.BackupDir, fa fileAdder) error {
 	return nil
 }
 
-func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) error {
+func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) (err error) {
 
 	sftpc, err := sftp.NewClient(sshc.Connection())
 	if err != nil {
 		return fmt.Errorf("unable to create sftp client %v", err)
 	}
-	defer sftpc.Close()
+	defer func() {
+		err = errors.Join(err, sftpc.Close())
+	}()
 
 	rootDir := dir.Root
 	if !filepath.IsAbs(rootDir) {

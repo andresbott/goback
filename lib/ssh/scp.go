@@ -3,6 +3,8 @@ package ssh
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -35,7 +37,7 @@ func (sshc *Client) WalkDir(root string, fn WalkFunc) error {
 	} else {
 		err = sshc.walkDir(root, &info, fn)
 	}
-	if err == SkipDir {
+	if errors.Is(err, ErrSkipDir) {
 		return nil
 	}
 	return err
@@ -45,7 +47,7 @@ func (sshc *Client) WalkDir(root string, fn WalkFunc) error {
 func (sshc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 	// call the user fn
 	if err := userFn(path, d, nil); err != nil || !d.IsDir() {
-		if err == SkipDir && d.IsDir() {
+		if errors.Is(err, ErrSkipDir) && d.IsDir() {
 			// Successfully skipped directory.
 			err = nil
 		}
@@ -67,7 +69,7 @@ func (sshc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 
 		path1 := filepath.Join(path, d1.Name())
 		if err := sshc.walkDir(path1, d1, userFn); err != nil {
-			if err == SkipDir {
+			if errors.Is(err, ErrSkipDir) {
 				break
 			}
 			return err
@@ -76,81 +78,86 @@ func (sshc *Client) walkDir(path string, d FileInfo, userFn WalkFunc) error {
 	return nil
 }
 
+var ErrNotADir = errors.New("the given path is not a directory")
+
 // Stat returns a FileInfo describing the named file from the file system.
-func (sshc *Client) Stat(name string) (FileStat, error) {
+func (sshc *Client) Stat(name string) (fstat FileStat, err error) {
 
 	session, err := sshc.Session()
 	if err != nil {
-		return FileStat{}, err
+		return fstat, err
 	}
-	defer session.Close()
+	defer func() {
+		// we ignore the EOF error on close since it is expected if session was closed by wait()
+		if cErr := session.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
+			err = errors.Join(err, cErr)
+		}
+	}()
 
 	cmd := `stat --printf="%F_%n\n\n" "` + name + `"`
 
 	// run command and capture stdout/stderr
-	output, err := session.Output(cmd)
+	output, err := session.CombinedOutput(cmd)
 	if err != nil {
-		return FileStat{}, err
+		if strings.Contains(string(output), "No such file or directory") {
+			return fstat, os.ErrNotExist
+		}
+		return fstat, err
 	}
 
 	fs, err := parseStatLine(string(output))
 	if err != nil {
-		return FileStat{}, fmt.Errorf("unable to get filestat: %v", err)
+		return fstat, fmt.Errorf("unable to get filestat: %v", err)
 	}
 
 	return fs, nil
 }
 
-// ReadDir reads the directory named by dirname and returns
-// a list of directory entries.
 func (sshc *Client) ReadDir(name string) ([]FileStat, error) {
-
-	fs, err := sshc.Stat(name)
-	if err != nil {
-		return nil, err
-	}
-	if !fs.isDir {
-		return nil, errors.New("passed path is not a directory")
-	}
 	return sshc.readDir(name)
 }
 
-// readDir is an internal implementation that does not verify that the passed path is indeed a directory
-func (sshc *Client) readDir(name string) ([]FileStat, error) {
+// readDir is an internal implementation that gts dir information of the remote path
+func (sshc *Client) readDir(name string) (fstats []FileStat, err error) {
 	sess, err := sshc.Session()
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		// we ignore the EOF error on close since it is expected if session was closed by wait()
+		if cErr := sess.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
+			err = errors.Join(err, cErr)
+		}
+	}()
 
-	cmd := `stat --printf="%F_%n\n" "` + name + `"/*`
+	//cmd := fmt.Sprintf(`if [ -d %q ] && [ "$(ls -A %q)" ]; then stat --printf="%%F_%%n\n" %q/*; fi`, name, name, name)
+	cmd := fmt.Sprintf(`
+dir=%q
 
-	// run command and capture stdout/stderr
+if [ ! -e "$dir" ]; then
+  echo "__STAT_NO_EXISTS__"
+elif [ ! -d "$dir" ]; then
+  echo "__STAT_NO_DIR__"
+elif [ "$(ls -A "$dir")" ]; then
+  find "$dir" -mindepth 1 -maxdepth 1 -exec stat --printf="%%F_%%n\n" {} \;
+fi
+`, name)
+
 	output, err := sess.Output(cmd)
-	sess.Close()
-
 	if err != nil {
-		// this command does not allow to verify if the folder is empty or not
-		// hence if this stat fails we check for empty dir
-		sess2, err2 := sshc.Session()
-		if err2 != nil {
-			return nil, err2
-		}
-
-		cmd2 := `ls -A "` + name + `"`
-		out, err := sess2.Output(cmd2)
-		sess2.Close()
-
-		// ls command is empty, henge empty folder
-		if string(out) == "" {
-			return []FileStat{}, nil
-		}
-
-		return nil, err
+		return nil, fmt.Errorf("command failed: %w", err)
+	}
+	if strings.Contains(string(output), "__STAT_NO_EXISTS__") {
+		return nil, fmt.Errorf("%w: %s", os.ErrNotExist, name)
+	}
+	if strings.Contains(string(output), "__STAT_NO_DIR__") {
+		return nil, fmt.Errorf("%w: %s", ErrNotADir, name)
 	}
 
 	lines := strings.Split(string(output), "\n")
 	fsl := []FileStat{}
 	for _, line := range lines {
+
 		if line == "" {
 			continue
 		}
@@ -161,13 +168,13 @@ func (sshc *Client) readDir(name string) ([]FileStat, error) {
 		fsl = append(fsl, fiStat)
 	}
 	return fsl, nil
+
 }
 
 // parseStatLine takes a line of a stat output  stat --printf="%F_%n\n\n" "/path"
 // and generates a FileStat from it
 func parseStatLine(in string) (FileStat, error) {
 	in = strings.Trim(in, "\n")
-
 	if strings.HasPrefix(in, "directory_") {
 		path := filepath.Base(in[10:])
 		fs := FileStat{
@@ -186,6 +193,15 @@ func parseStatLine(in string) (FileStat, error) {
 		return fs, nil
 	}
 
+	if strings.HasPrefix(in, "regular empty file_") {
+		path := filepath.Base(in[19:])
+		fs := FileStat{
+			isDir: false,
+			name:  path,
+		}
+		return fs, nil
+	}
+
 	return FileStat{}, errors.New("file type not recognized: " + in[20:] + "...")
 }
 
@@ -196,10 +212,10 @@ type FileInfo interface {
 	IsDir() bool  // abbreviation for Mode().IsDir()
 }
 
-// SkipDir is used as a return value from WalkFuncs to indicate that
+// ErrSkipDir is used as a return value from WalkFuncs to indicate that
 // the directory named in the call is to be skipped. It is not returned
 // as an error by any function.
-var SkipDir = errors.New("skip this directory")
+var ErrSkipDir = errors.New("skip this directory")
 
 // FileStat holds the information needed about files/directories to recursively walk them and call the user function
 type FileStat struct {

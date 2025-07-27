@@ -2,34 +2,22 @@ package zip
 
 import (
 	"github.com/google/go-cmp/cmp"
-	"log"
-	"os"
 	"testing"
 )
 
 func TestNewZipWriter(t *testing.T) {
 
 	t.Run("ensure no error is returned", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "TestNewTestWriter")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
-
-		_, err = New(dir + "/bla.zip")
+		dir := t.TempDir()
+		_, err := New(dir + "/bla.zip")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("ensure error about zip extension", func(t *testing.T) {
-		dir, err := os.MkdirTemp("", "TestNewTestWriter")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(dir)
-
-		_, err = New(dir + "bla")
+		dir := t.TempDir()
+		_, err := New(dir + "bla")
 
 		expect := "destination does not end in .zip"
 		if err.Error() != expect {
@@ -40,26 +28,19 @@ func TestNewZipWriter(t *testing.T) {
 
 func TestAddFileToZip(t *testing.T) {
 
-	setupTest := func(t *testing.T) (func(t *testing.T), *Handler, string) {
-		dir, err := os.MkdirTemp("", "TestAddFileToZip")
-		if err != nil {
-			log.Fatal(err)
-		}
+	setupTest := func(t *testing.T) (*Handler, string) {
+		dir := t.TempDir()
 		zipFile := dir + "/bla.zip"
 
 		zh, err := New(zipFile)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-
-		return func(t *testing.T) {
-			os.RemoveAll(dir)
-		}, zh, zipFile
+		return zh, zipFile
 	}
 
 	t.Run("correctly add 2 files", func(t *testing.T) {
-		destroy, zh, zipFile := setupTest(t)
-		defer destroy(t)
+		zh, zipFile := setupTest(t)
 
 		err := zh.AddFile("sampledata/files/dir1/subdir1/subfile.log", "sampledata/files/dir1/subdir1/subfile.log")
 		if err != nil {
