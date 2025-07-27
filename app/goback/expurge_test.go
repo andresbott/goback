@@ -1,7 +1,7 @@
 package goback
 
 import (
-	"log"
+	"github.com/AndresBott/goback/app/logger"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,41 +11,27 @@ import (
 )
 
 func TestExpurgeDir(t *testing.T) {
-	createFile := func(path string) {
+	createFile := func(dir, file string) {
+		path := filepath.Join(dir, file)
+		// #nosec G304 -- test code using controlled path
 		emptyFile, err := os.Create(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		emptyFile.Close()
+		_ = emptyFile.Close()
 	}
 
-	setup := func() (string, func()) {
-		dir, err := os.MkdirTemp("", t.Name())
-		if err != nil {
-			log.Fatal(err)
-		}
-		// destructor function
-		destructor := func() {
-			os.RemoveAll(dir)
-		}
-		return dir, destructor
-	}
+	tmpdir := t.TempDir()
+	createFile(tmpdir, "blib_2007_02_05-17:04:05_backup.zip")
+	createFile(tmpdir, "blib_2006_02_05-17:04:05_backup.zip")
+	createFile(tmpdir, "name_2008_02_05-17:04:05_backup.zip")
 
-	dir, dest := setup()
-	defer dest()
-
-	createFile(filepath.Join(dir, "blib_2007_02_05-17:04:05_backup.zip"))
-	createFile(filepath.Join(dir, "blib_2006_02_05-17:04:05_backup.zip"))
-	createFile(filepath.Join(dir, "name_2008_02_05-17:04:05_backup.zip"))
-
-	br := BackupRunner{}
-
-	err := br.ExpurgeDir(dir, 1, "blib")
+	err := ExpurgeDir(tmpdir, 1, "blib", logger.SilentLogger())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	files, err := filepath.Glob(dir + "/*.zip")
+	files, err := filepath.Glob(tmpdir + "/*.zip")
 	if err != nil {
 		t.Fatal(err)
 	}

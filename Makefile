@@ -19,9 +19,7 @@ __check_defined = \
 
 default: help
 
-status: ## get info about the project
-	@echo "current commit: ${COMMIT_SHA_SHORT}"
-
+##@ Test
 fmt: ## format go code and run mod tidy
 	@go fmt ./...
 	@go mod tidy
@@ -30,30 +28,54 @@ fmt: ## format go code and run mod tidy
 test: ## run go tests
 	@go test ./... -cover
 
+test-long: ## run go tests, long run
+	@RUN_TESTCONTAINERS=true go test ./... -cover
+
 lint: ## run go linter
 	@golangci-lint run
 
-verify: fmt test benchmark lint ## run all verification and code structure tiers
+verify: fmt test-long lint ## run all verification and code structure tiers
 
-benchmark: ## run go benchmarks
-	@go test -run=^$$ -bench=. ./...
+ci: fmt test lint
 
+##@ Build
 build: ## builds a snapshot build using goreleaser
-	@goreleaser --snapshot --rm-dist
-
-release: verify ## release a new version, call with version="v1.2.3", make sure to have valid GH token
-	@:$(call check_defined, version, "version defined: call with version=\"v1.2.3\"")
-	@git diff --quiet || ( echo 'git is in dirty state' ; exit 1 )
-	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
-	@git tag -d $(version) || true # delete tag if it exists, allows to overwrite tags
-	@git push --delete origin $(version) || true
-	@git tag -a $(version) -m "Release version: $(version)"
-	@git push origin $(version)
-	@goreleaser --rm-dist
+	@goreleaser release --clean --snapshot
 
 clean: ## clean the build environment
 	@rm -rf ./dist
 
-help: ## help command
-	@egrep '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST)  | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+##@ Release
+
+check_env: # check for needed envs
+ifndef GITHUB_TOKEN
+	$(error GITHUB_TOKEN is undefined, create one with repo permissions here: https://github.com/settings/tokens/new?scopes=repo,write:packages)
+endif
+	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
+
+.PHONY: check-git-clean
+check-git-clean: # check if git repo is clen
+	@git diff --quiet
+
+.PHONY: check-branch
+check-branch:
+	@current_branch=$$(git symbolic-ref --short HEAD) && \
+	if [ "$$current_branch" != "main" ]; then \
+		echo "Error: You are on branch '$$current_branch'. Please switch to 'main'."; \
+		exit 1; \
+	fi
+
+release: check_env check-branch check-git-clean verify ## release a new version, call with version="v1.2.3", make sure to have valid GH token
+	@[ "${version}" ] || ( echo ">> version is not set, mausage: make release version=\"v1.2.3\" "; exit 1 )
+	@git tag -d $(version) || true
+	@git tag -a $(version) -m "Release version: $(version)"
+	@git push --delete origin $(version) || true
+	@git push origin $(version) || true
+	@goreleaser release --clean
+
+
+##@ Help
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

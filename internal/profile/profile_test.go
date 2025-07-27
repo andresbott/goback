@@ -57,7 +57,7 @@ func TestLoadProfile(t *testing.T) {
 				Name:     "remote",
 				IsRemote: true,
 				Remote: RemoteCfg{
-					RemoteType: "sshPassword",
+					AuthType:   "sshPassword",
 					Host:       "bla.ble.com",
 					Port:       "22",
 					User:       "user",
@@ -79,9 +79,6 @@ func TestLoadProfile(t *testing.T) {
 						User:   "user",
 						Pw:     "pw",
 					},
-				},
-				SyncBackup: SyncCfg{
-					RemotePath: "/bla",
 				},
 				Destination: "/backups",
 				Keep:        3,
@@ -139,7 +136,7 @@ func TestLoadProfile(t *testing.T) {
 
 	//
 	//t.Run("load nonexistent file", func(t *testing.T) {
-	//	_, err := LoadProfile("sampledata/nonexistent.yaml")
+	//	_, err := LoadProfileFile("sampledata/nonexistent.yaml")
 	//	if err == nil {
 	//		t.Fatal("expecting an error but none was returned")
 	//	}
@@ -151,7 +148,7 @@ func TestLoadProfile(t *testing.T) {
 	//})
 	//
 	//t.Run("load from wrong file type", func(t *testing.T) {
-	//	_, err := LoadProfile("sampledata/json.json")
+	//	_, err := LoadProfileFile("sampledata/json.json")
 	//	if err == nil {
 	//		t.Fatal("expecting an error but none was returned")
 	//	}

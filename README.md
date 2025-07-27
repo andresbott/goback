@@ -1,6 +1,6 @@
 # GoBack
 
-[![CircleCI](https://circleci.com/gh/AndresBott/goback/tree/main.svg?style=svg)](https://circleci.com/gh/AndresBott/goback/tree/main)
+[![CircleCI](https://circleci.com/gh/andresbott/goback/tree/main.svg?style=svg)](https://circleci.com/gh/AndresBott/goback/tree/main)
 
 ## Use
 
@@ -66,9 +66,15 @@ mysql:
 ## Roadmap
 
 * backup git repositories
+* backuo github orgs
+* allow to use envs placeholders in profiles, e.g. for secrets
 * write documentation
+* exclude folders that contain .nobackup
+* improve the expurge rules to keep N yearly, monthly etc
 
 #### TODO
+* use systemd timers instead of cron
+* mysqldump should not depend on my.cnf
 * add option to follow symlink instead of adding them to the backup file
 * use tar.gz instead of zip to keep file permissions
 * don't fail on broken symlinks

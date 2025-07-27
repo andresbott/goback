@@ -22,7 +22,7 @@ func TestReadIni(t *testing.T) {
 
 	t.Run("read values from file", func(t *testing.T) {
 		h := Handler{}
-		err := h.userFromCnf([]string{
+		err := h.loadCnfFiles([]string{
 			"sampledata/my3.cnf",
 		})
 		if err != nil {
@@ -33,7 +33,7 @@ func TestReadIni(t *testing.T) {
 
 	t.Run("verify overlay", func(t *testing.T) {
 		h := Handler{}
-		err := h.userFromCnf([]string{
+		err := h.loadCnfFiles([]string{
 			"sampledata/my1.cnf",
 			"sampledata/my2.cnf",
 			"sampledata/my3.cnf",
@@ -44,49 +44,69 @@ func TestReadIni(t *testing.T) {
 		verifyResult(h.user, h.pw, t)
 	})
 
-	t.Run("verify error is returned", func(t *testing.T) {
+	t.Run("verify all files even if non existent", func(t *testing.T) {
 		h := Handler{}
-		err := h.userFromCnf([]string{
-			"sampledata/my1.cnf",
+		err := h.loadCnfFiles([]string{
+			"sampledata/doesNotExist.cnf",
+			"sampledata/my3.cnf",
 		})
-		if err == nil {
-			t.Errorf("expeciting error but none returned")
+		if err != nil {
+			t.Fatal("unexpected error: ", err)
 		}
-
-		if err.Error() != "user or password is empty" {
-			t.Errorf("got unexpected error message: %s", err.Error())
-		}
-
+		verifyResult(h.user, h.pw, t)
 	})
 }
 
 func TestGetCmd(t *testing.T) {
 
-	myh := Handler{
-		binPath: "/bin/myd",
-		dbName:  "dbName",
-		user:    "myUser",
-		pw:      "mypw",
-	}
+	t.Run("get command with user ", func(t *testing.T) {
+		myh := Handler{
+			binPath: "/bin/myd",
+			dbName:  "dbName",
+			user:    "myUser",
+			pw:      "mypw",
+		}
 
-	bin, args := myh.getCmd()
+		bin, args := myh.getCmd()
 
-	binWant := "/bin/myd"
-	if bin != binWant {
-		t.Errorf("unexpected bin path, got: %s, want: %s", bin, binWant)
-	}
-	argsWant := []string{
-		"-u",
-		"myUser",
-		"-pmypw",
-		"--add-drop-database",
-		"--databases",
-		"dbName",
-	}
-	if diff := cmp.Diff(argsWant, args); diff != "" {
-		t.Errorf("output mismatch (-want +got):\n%s", diff)
-	}
+		binWant := "/bin/myd"
+		if bin != binWant {
+			t.Errorf("unexpected bin path, got: %s, want: %s", bin, binWant)
+		}
+		argsWant := []string{
+			"-u",
+			"myUser",
+			"-pmypw",
+			"--add-drop-database",
+			"--databases",
+			"dbName",
+		}
+		if diff := cmp.Diff(argsWant, args); diff != "" {
+			t.Errorf("output mismatch (-want +got):\n%s", diff)
+		}
+	})
 
+	t.Run("get command without  user ", func(t *testing.T) {
+		myh := Handler{
+			binPath: "/bin/myd",
+			dbName:  "dbName",
+		}
+
+		bin, args := myh.getCmd()
+
+		binWant := "/bin/myd"
+		if bin != binWant {
+			t.Errorf("unexpected bin path, got: %s, want: %s", bin, binWant)
+		}
+		argsWant := []string{
+			"--add-drop-database",
+			"--databases",
+			"dbName",
+		}
+		if diff := cmp.Diff(argsWant, args); diff != "" {
+			t.Errorf("output mismatch (-want +got):\n%s", diff)
+		}
+	})
 }
 
 // this test executes a mock mysqldump binary and compares the printed output of that binary to the expected value

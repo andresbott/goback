@@ -33,7 +33,8 @@ func New(dest string) (*Handler, error) {
 	}
 
 	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-	file, err := os.OpenFile(dest, flags, 0644)
+	// #nosec G304 -- expected, since we are loading files
+	file, err := os.OpenFile(dest, flags, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open zip for writing: %s", err)
 	}
@@ -47,27 +48,33 @@ func New(dest string) (*Handler, error) {
 }
 
 // AddFile writes a file into the current zip file
-func (z *Handler) AddFile(origin string, zipDest string) error {
+func (z *Handler) AddFile(origin string, zipDest string) (err error) {
 	if !z.isOpen {
 		return errors.New("zip handler is closed")
 	}
 
+	// #nosec G304 -- expected, since we are loading files
 	file, err := os.Open(origin)
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %s", origin, err)
 	}
-	defer file.Close()
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
 
 	return z.WriteFile(file, zipDest)
 }
 
 // AddSymlink writes a symlink into a zip file
-func (z *Handler) AddSymlink(origin string, zipDest string) error {
+func (z *Handler) AddSymlink(origin string, zipDest string) (err error) {
+	// #nosec G304 -- expected, since we are loading files
 	file, err := os.Open(origin)
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %s", origin, err)
 	}
-	defer file.Close()
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
 
 	info, err := os.Lstat(file.Name())
 	if err != nil {
@@ -114,8 +121,8 @@ func (z *Handler) WriteFile(in io.Reader, dest string) error {
 	return nil
 }
 
-// FileWriter returns a io.writer used to write to the file within the zip file defined with dest
-func (z Handler) FileWriter(dest string) (io.Writer, error) {
+// FileWriter returns an io.writer used to write to the file within the zip file defined with dest
+func (z *Handler) FileWriter(dest string) (io.Writer, error) {
 	if !z.isOpen {
 		return nil, errors.New("zip handler is closed")
 	}
@@ -127,14 +134,15 @@ func (z Handler) FileWriter(dest string) (io.Writer, error) {
 	return wr, nil
 }
 
-func ListFiles(in string) ([]string, error) {
+func ListFiles(in string) (files []string, err error) {
 	read, err := zip.OpenReader(in)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open: %s", err)
 	}
-	defer read.Close()
+	defer func() {
+		err = errors.Join(err, read.Close())
+	}()
 
-	files := []string{}
 	for _, file := range read.File {
 		files = append(files, file.Name)
 	}

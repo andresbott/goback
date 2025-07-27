@@ -1,0 +1,126 @@
+version: 2
+before:
+  hooks:
+    - go mod tidy
+    - go mod vendor
+builds:
+  # =====================================================================================
+  # Linux build
+  # =====================================================================================
+  - id: linux
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+      - v2
+      - v3
+      - v4
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+    binary: bumbu-todo
+    env:
+      - >-
+        {{- if eq .Arch "arm64" }}CC=aarch64-linux-gnu-gcc{{- end }}
+        {{- if eq .Arch "arm" }}CC=arm-linux-gnueabi-gcc{{- end }}    
+
+  # =====================================================================================
+  # Windows build
+  # =====================================================================================
+  - id: windows
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v2
+      - v3
+      - v4
+    ldflags:
+      - -s -w
+      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+    flags:
+      - -trimpath
+    binary: bumbu-todo
+
+  # =====================================================================================
+  # MacOs builds:
+  # =====================================================================================
+  - id: darwin
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/go-bumbu/todo-app/app/metainfo.Version={{.Version}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.BuildTime={{.Date}}
+      - -X github.com/go-bumbu/todo-app/app/metainfo.ShaVer={{.Commit}}
+    flags:
+      - -trimpath
+    binary: bumbu-todo
+
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of uname.
+    name_template: >-
+      bumbu-todo
+      {{- title .Os  }}_
+      {{- if eq .Arch "amd64" }}x86_64_{{ .Amd64 }}
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+
+# see full detail: https://goreleaser.com/customization/nfpm/
+nfpms:
+  -
+    id: bumbu-todo
+    package_name: bumbu-todo
+
+    maintainer: "Andres Bott <contact@andresbott.com>"
+    homepage: https://github.com/go-bumbu/todo-app
+    description: |
+      sample application for the go-bumbu framework
+      license: LGPL3
+    formats:
+      - deb
+
+    # Version Prerelease.
+    # Default is extracted from `version` if it is semver compatible.
+    #    prerelease: snapshot
+
+    #pacakge classification
+    section: default
+    priority: optional
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj

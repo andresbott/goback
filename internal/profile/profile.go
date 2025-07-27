@@ -10,81 +10,6 @@ import (
 	"strings"
 )
 
-// local type to unmarshal
-type backupDir struct {
-	Root    string
-	Exclude []string
-}
-
-type BackupDir struct {
-	Root    string
-	Exclude []glob.Glob
-}
-
-type MysqlBackup struct {
-	DbName string
-	User   string
-	Pw     string
-}
-
-type RemoteCfg struct {
-	RemoteType string `yaml:"type"`
-	Host       string
-	Port       string
-	User       string
-	Password   string
-	PrivateKey string `yaml:"privateKey"`
-	PassPhrase string `yaml:"passPhrase"`
-}
-type SyncCfg struct {
-	RemotePath string `yaml:"remotePath"`
-}
-
-type EmailNotify struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	To       []string
-}
-
-// local type to unmarshal
-type profile struct {
-	Name        string
-	Remote      RemoteCfg
-	Dirs        []backupDir
-	Mysql       []MysqlBackup
-	SyncBackups SyncCfg `yaml:"syncBackups"`
-	Destination string
-	Keep        int
-	Owner       string
-	Mode        string
-	Notify      EmailNotify
-}
-
-type Profile struct {
-	Name        string
-	IsRemote    bool
-	Remote      RemoteCfg
-	Dirs        []BackupDir
-	Mysql       []MysqlBackup
-	SyncBackup  SyncCfg
-	Destination string
-	Keep        int
-	Owner       string
-	Mode        string
-	Notify      bool
-	NotifyCfg   EmailNotify
-}
-
-type RemoteType string
-
-const (
-	Password   = "sshPassword"
-	PrivateKey = "sshKey"
-	SshAgent   = "sshAgent"
-)
-
 // check if all the notification fields are of type default zero
 func (m EmailNotify) isEmpty() bool {
 	if m.Host != "" ||
@@ -93,7 +18,7 @@ func (m EmailNotify) isEmpty() bool {
 		m.Password != "" {
 		return false
 	}
-	if m.To != nil && len(m.To) > 0 {
+	if len(m.To) > 0 {
 		return false
 	}
 	return true
@@ -107,6 +32,7 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, errors.New("profile path is not a .yaml file")
 	}
 
+	// #nosec G304 -- file path is only unmarshalled into yaml
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return Profile{}, err
@@ -121,7 +47,6 @@ func LoadProfile(file string) (Profile, error) {
 	ret := Profile{
 		Name:        p.Name,
 		Mysql:       p.Mysql,
-		SyncBackup:  p.SyncBackups,
 		Destination: p.Destination,
 		Keep:        p.Keep,
 		Owner:       p.Owner,
@@ -132,9 +57,9 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	if p.Remote.RemoteType != "" {
-		t := p.Remote.RemoteType
-		if t != Password && t != PrivateKey && t != SshAgent {
+	if p.Remote.AuthType != "" {
+		t := p.Remote.AuthType
+		if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
 			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
 		}
 		if p.Remote.Host == "" {
@@ -147,7 +72,6 @@ func LoadProfile(file string) (Profile, error) {
 		if ret.Remote.Port == "" {
 			ret.Remote.Port = getDefaultPort(t)
 		}
-
 	}
 
 	// check notification config
@@ -175,9 +99,9 @@ func LoadProfile(file string) (Profile, error) {
 	return ret, nil
 }
 
-func getDefaultPort(in string) string {
+func getDefaultPort(in AuthType) string {
 	switch in {
-	case Password, PrivateKey, SshAgent:
+	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
 		return "22"
 	default:
 		return ""
@@ -238,19 +162,19 @@ name: myService
 
 # use a remote connection to run goback
 remote:
-    # the type of connection, currently valid: sshPassword | sshKey | sshAgent 
-    # if the type is set to sshAgent, get the ssh key from a running ssh agent
-    type: sshPassword
+	# the type of connection, currently valid: sshPassword | sshKey | sshAgent 
+	# if the type is set to sshAgent, get the ssh key from a running ssh agent
+	type: sshPassword
 	#host/port of the server
-    host: bla.ble.com
+	host: bla.ble.com
 	port: 22
-    # the username used to login to the server
-    user: user
-    # password used when type is sshPassword 
-    password: bla
-    # key file used when type is sshKey, a passphrase can be provided as well
-    privateKey: privKey
-    passPhrase: pass
+	# the username used to login to the server
+	user: user
+	# password used when type is sshPassword 
+	password: bla
+	# key file used when type is sshKey, a passphrase can be provided as well
+	privateKey: privKey
+	passPhrase: pass
 
 # list of different filesystem directories to backup
 dirs:
@@ -268,12 +192,6 @@ mysql:
     user: user
     pw: pw
 
-# download backup files from a remote location to the local folder
-# this will only download files that do not yet exists locally
-# remote connection is mandatory for this to work
-syncBackups:
-  remotePath: "/bla"
-
 # this is the destination where the backup file will be written
 # only local filesystem is allowed
 destination: /backups
@@ -286,7 +204,7 @@ keep: 3
 owner : "ble"
 mode : "0700"
 
-# notify per email if a profile was successfull or not
+# notify per email if a profile was successful or not
 notify:
 	# send email to these addresses 
     to:

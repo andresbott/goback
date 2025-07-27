@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 RUN mkdir /var/run/sshd; \
     apt install -y openssh-server; \
