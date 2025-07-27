@@ -14,7 +14,7 @@ import (
 
 //nolint:gocyclo //accepted in this, test added before linter rule
 func TestScpActions(t *testing.T) {
-	//skipInCI(t) // skip test if running in CI
+	skipInCI(t) // skip test if running in CI
 
 	// since git will drop empty folders, we create if as part of the test
 	if _, err := os.Stat("./sampledata/dir/empty"); os.IsNotExist(err) {
