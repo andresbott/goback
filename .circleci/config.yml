@@ -7,18 +7,12 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: cimg/go:1.17
-    environment:
-      SKIP_CI_TEST: "true"
+      - image: cimg/go:1.23
     steps:
       - checkout
       - run:
           name: "run tests "
-          command: "make test"
-
-      - run:
-          name: "run linter"
-          command: "make lint"
+          command: "make verify"
 
 
 # Invoke jobs via workflows
