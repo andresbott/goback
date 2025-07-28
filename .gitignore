@@ -22,3 +22,5 @@
 
 dist/
 test/
+# test specific
+app/goback/sampledata/goback

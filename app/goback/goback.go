@@ -63,7 +63,7 @@ func (br *BackupRunner) Run() error {
 		start := time.Now()
 
 		// run backup
-		err := BackupProfile(prfl, br.Logger, getZipName(prfl.Name))
+		err := runSingleProfile(prfl, br.Logger, getZipName(prfl.Name))
 		if err != nil {
 			hadErr = true
 			br.Logger.Error("Error in backup of profile", "err", err)
@@ -110,9 +110,9 @@ func (br *BackupRunner) Run() error {
 	return nil
 }
 
-// BackupProfile takes a single profile as input and generates a single Zip backup as output
+// runSingleProfile takes a single profile as input and generates a single Zip backup as output
 // the sources of backup can be either local fs or sftp connection
-func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error {
+func runSingleProfile(prfl profile.Profile, log *slog.Logger, zipName string) error {
 
 	if len(prfl.Dirs) <= 0 && len(prfl.Mysql) <= 0 {
 		log.Warn("Nothing to backup, skipping.")

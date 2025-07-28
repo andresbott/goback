@@ -71,6 +71,8 @@ mysql:
 * write documentation
 * exclude folders that contain .nobackup
 * improve the expurge rules to keep N yearly, monthly etc
+* pg_dump for a specific DB
+* test mysqldump against db in docker
 
 #### TODO
 * use systemd timers instead of cron

@@ -11,7 +11,15 @@ import (
 	"path/filepath"
 )
 
-// dump a single database into a zip handler
+// StreamMysqlFile calls mysqldump on the remote machine and stream it's content
+// to stdout, if any issue happens it will be streamed to stderr.
+// this is used so that another process can take the content and store it in a backup file
+func StreamMysqlFile(binPath string, dbPrfl profile.MysqlBackup, stdout, stderr io.Writer) error {
+
+	return nil
+}
+
+// calls mysqldump on the local machine and stores it's contents on the zip file
 func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.Handler) error {
 
 	dbHandler, err := mysqldump.New(mysqldump.Cfg{
@@ -36,6 +44,8 @@ func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.
 	return nil
 }
 
+// copyRemoteMysql uses an ssh connections to open a new session to the given remote, call mysqldump and store the
+// streamed data on the local zip backup file.
 func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) (err error) {
 	h, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,

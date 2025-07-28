@@ -7,6 +7,13 @@ if [[ ! -z "${PW_USER}" ]]; then
   useradd -m -p "${PW_USER}" -s /bin/bash pwuser
 fi
 
+# grant pwuser passwordless sudo access to mysqldump
+if [[ ! -z "${PW_USER}" ]]; then
+  echo "pwuser ALL=(ALL) NOPASSWD: /usr/local/bin/mysqldump" >> /etc/sudoers
+  echo "pwuser ALL=(ALL) NOPASSWD: /usr/local/bin/goback" >> /etc/sudoers
+fi
+
+
 # create a user called privkey protected by ssh key
 if [[ ! -z "${SHH_KEY_USER}" ]]; then
   echo "creating privkey"

@@ -2,6 +2,7 @@ package goback
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/AndresBott/goback/app/logger"
@@ -9,6 +10,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -166,7 +168,7 @@ func TestBackupProfile_local(t *testing.T) {
 			zipFile := filepath.Join(tmpDir, "out", "test.zip")
 			tc.profile.Destination = filepath.Join(tmpDir, "out")
 
-			err := BackupProfile(tc.profile, logger.SilentLogger(), "test.zip")
+			err := runSingleProfile(tc.profile, logger.SilentLogger(), "test.zip")
 
 			if tc.expectedErr == "" {
 				if err != nil {
@@ -205,7 +207,63 @@ type sshContainer struct {
 	port int
 }
 
+// compileRemote will build a test binary that will be added to the docker remote.
+// this is used to test the 2e2 flow for remote goback call
+func compileRemote() error {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working directory: %v", err)
+	}
+
+	// Find project root by looking for go.mod file
+	projectRoot := findProjectRoot(cwd)
+	if projectRoot == "" {
+		return fmt.Errorf("failed to find project root (go.mod file not found in any parent directory)")
+	}
+
+	// Calculate relative path from project root to internal/rcp directory
+	remodeBinPath := filepath.Join(projectRoot, "app", "goback")
+
+	// Set paths relative to project root
+	outputPath := filepath.Join(remodeBinPath, "sampledata", "goback")
+	sourcePath := filepath.Join(remodeBinPath, "sampledata", "remotebin", "remotebin.go")
+
+	// Compile the backend binary
+	cmd := exec.Command("go", "build", "-o", outputPath, sourcePath)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to compile backend: %v, stderr: %s", err, stderr.String())
+	}
+	return nil
+}
+
+// findProjectRoot looks for go.mod file in the current directory and parent directories
+// to determine the project root
+func findProjectRoot(dir string) string {
+	// Check if go.mod exists in the current directory
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		return dir
+	}
+
+	// If we've reached the root directory, return empty string
+	parent := filepath.Dir(dir)
+	if parent == dir {
+		return ""
+	}
+
+	// Recursively check parent directories
+	return findProjectRoot(parent)
+}
+
 func setupContainer(ctx context.Context) (*sshContainer, error) {
+
+	err := compileRemote()
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile remote: %v", err)
+	}
 
 	req := testcontainers.ContainerRequest{
 		FromDockerfile: testcontainers.FromDockerfile{
@@ -358,7 +416,7 @@ func TestBackupProfile_remote(t *testing.T) {
 			}
 			ignoreHostKey = true // ignore for tests only
 
-			err = BackupProfile(tc.profile, logger.SilentLogger(), "test.zip")
+			err = runSingleProfile(tc.profile, logger.SilentLogger(), "test.zip")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

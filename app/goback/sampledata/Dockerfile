@@ -9,7 +9,11 @@ RUN apt-get update && \
 
 COPY ./files /data
 COPY ./mysqldump /usr/local/bin/mysqldump
-RUN chmod +x //usr/local/bin/mysqldump
+RUN chmod +x /usr/local/bin/mysqldump
+
+
+COPY ./goback /usr/local/bin/goback
+RUN chmod +x /usr/local/bin/goback
 
 COPY ./backupDestination /backupDestination
 
