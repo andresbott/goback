@@ -128,12 +128,14 @@ func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error
 
 	// handle file backup
 	if prfl.IsRemote {
-		err = backupRemote(prfl, destZip)
+		log.Info("backing up remote profile to file", "destination", destZip)
+		err = backupRemote(prfl, destZip, log)
 		if err != nil {
 			return delZipAndErr(destZip, err)
 		}
 	} else {
-		err = backupLocal(prfl, destZip)
+		log.Info("backing up local profile to file", "destination", destZip)
+		err = backupLocal(prfl, destZip, log)
 		if err != nil {
 			return delZipAndErr(destZip, err)
 		}
@@ -183,7 +185,7 @@ func prepDest(dest string) error {
 }
 
 // backupLocal will run all the backup steps when running on the same machine
-func backupLocal(prfl profile.Profile, zipDestination string) error {
+func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) error {
 
 	zipHandler, err := zip.New(zipDestination)
 	if err != nil {
@@ -192,6 +194,7 @@ func backupLocal(prfl profile.Profile, zipDestination string) error {
 
 	// copy files into the zip
 	for _, bkpDir := range prfl.Dirs {
+		log.Info("backing up directory", "dir", bkpDir)
 		err = copyLocalFiles(bkpDir, zipHandler)
 		if err != nil {
 			return err
@@ -208,6 +211,7 @@ func backupLocal(prfl profile.Profile, zipDestination string) error {
 		}
 
 		for _, db := range prfl.Mysql {
+			log.Info("backing up mysql database", "db", db)
 			err := copyLocalMysql(binPath, db, zipHandler)
 			if err != nil {
 				return err
@@ -224,7 +228,7 @@ func backupLocal(prfl profile.Profile, zipDestination string) error {
 var ignoreHostKey = false
 
 // backupRemote will open an ssh connection to a remote location and run copy of files and dbs
-func backupRemote(prfl profile.Profile, dest string) error {
+func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 	port, err := strconv.Atoi(prfl.Remote.Port)
 	if err != nil {
 		return fmt.Errorf("error parsisng port: %v", err)
@@ -259,6 +263,7 @@ func backupRemote(prfl profile.Profile, dest string) error {
 
 	// dump filesystem data into zip
 	for _, bkpDir := range prfl.Dirs {
+		log.Info("backing up directory", "dir", bkpDir)
 		err := copyRemoteFiles(sshC, bkpDir, zipHandler)
 		if err != nil {
 			return err
@@ -272,6 +277,7 @@ func backupRemote(prfl profile.Profile, dest string) error {
 			return fmt.Errorf("error checking mysql binary: %v", err)
 		}
 		for _, db := range prfl.Mysql {
+			log.Info("backing up mysql database", "db", db)
 			err := copyRemoteMysql(sshC, binPath, db, zipHandler)
 			if err != nil {
 				return err
