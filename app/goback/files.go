@@ -103,6 +103,7 @@ func copyLocalFiles(dir profile.BackupDir, fa fileAdder) error {
 	return nil
 }
 
+// copyRemoteFiles takes a single backup dir, connects over ssh and recursively traverses the files and adds them to the zip handler
 func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) (err error) {
 
 	sftpc, err := sftp.NewClient(sshc.Connection())
