@@ -62,6 +62,26 @@ func (br *BackupRunner) Run() error {
 		br.Logger.Info("Loading profile", "name", prfl.Name)
 		start := time.Now()
 
+		// run sync
+		if prfl.SyncBackup.RemotePath != "" {
+
+			start2 := time.Now()
+			err := br.syncRemoteBackup(prfl)
+			if err != nil {
+				if prfl.Notify {
+					// ignore notification error
+					_ = NotifyFailure(prfl.NotifyCfg, err)
+				}
+				capturedErrs = true
+
+				continue
+			}
+
+			t2 := time.Now()
+			elapsed2 := t2.Sub(start2)
+
+		}
+
 		// run backup
 		err := BackupProfile(prfl, br.Logger, getZipName(prfl.Name))
 		if err != nil {
@@ -287,6 +307,57 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 
 	// close the zip file at the end
 	zipHandler.Close()
+	return nil
+}
+
+// syncRemoteBackup takes a remote (sftp) location from the profile and downloads remote backups files
+// to the local location
+func (br *BackupRunner) syncRemoteBackup(prfl profile.Profile) error {
+	// check if destination dir exists
+	fInfo, err := os.Stat(prfl.Destination)
+	if err != nil {
+		return fmt.Errorf("destination not found: %v", err)
+	}
+	if !fInfo.IsDir() {
+		return errors.New("the output path is not a directory")
+	}
+
+	// handle file backup
+	if !prfl.IsRemote {
+		return errors.New("sync backups only works with remote location enabled")
+	}
+
+	port, err := strconv.Atoi(prfl.Remote.Port)
+	if err != nil {
+		return fmt.Errorf("error parsisng port: %v", err)
+	}
+
+	sshC, err := ssh.New(ssh.Cfg{
+		Host:          prfl.Remote.Host,
+		Port:          port,
+		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
+		User:          prfl.Remote.User,
+		Password:      prfl.Remote.Password,
+		PrivateKey:    prfl.Remote.PrivateKey,
+		PassPhrase:    prfl.Remote.PassPhrase,
+		IgnoreHostKey: false, // no need to expose this for the moment
+	})
+
+	if err != nil {
+		return fmt.Errorf("error creating ssh client: %v", err)
+	}
+	err = sshC.Connect()
+	if err != nil {
+		return fmt.Errorf("error connecting ssh: %v", err)
+	}
+	defer func() {
+		_ = sshC.Disconnect()
+	}()
+
+	err = br.syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
+	if err != nil {
+		return fmt.Errorf("error running sftp backup profile: %v", err)
+	}
 	return nil
 }
 

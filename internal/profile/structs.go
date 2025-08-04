@@ -2,39 +2,71 @@ package profile
 
 import "github.com/gobwas/glob"
 
-// local type to unmarshal
-type backupDir struct {
-	Root    string
-	Exclude []string
+type Profile struct {
+	Name string
+	Type ProfileType
+
+	Ssh  Ssh
+	Dirs []BackupPath
+	Dbs  []BackupDb
+
+	Destination Destination
+	Notify      EmailNotify
 }
 
-type BackupDir struct {
-	Root    string
-	Exclude []glob.Glob
-}
-
-type MysqlBackup struct {
-	DbName string
-	User   string
-	Pw     string
-}
-
-type AuthType string
+type ProfileType string
 
 const (
-	RemotePassword   AuthType = "sshPassword"
-	RemotePrivateKey AuthType = "sshKey"
-	RemoteSshAgent   AuthType = "sshAgent"
+	TypeRemote   ProfileType = "remote"
+	TypeLocal    ProfileType = "local"
+	TypeSftpSync ProfileType = "sftpsync"
 )
 
-type RemoteCfg struct {
-	AuthType   AuthType `yaml:"type"`
+// Ssh holds the details to connect over ssh to the remote
+type Ssh struct {
+	Type       ConnType
 	Host       string
-	Port       string
+	Port       int
 	User       string
 	Password   string
 	PrivateKey string `yaml:"privateKey"`
-	PassPhrase string `yaml:"passPhrase"`
+	Passphrase string
+}
+
+type ConnType string
+
+const (
+	ConnTypePasswd  ConnType = "password"
+	ConnTypeSshKey  ConnType = "sshkey"
+	ConnTypeSshAgen ConnType = "sshagent"
+)
+
+// BackupPath Holds the details about a path to include in the backup
+type BackupPath struct {
+	Path    string
+	Exclude []glob.Glob
+}
+
+type BackupDb struct {
+	Name     string
+	Type     DbType
+	User     string
+	Password string
+}
+type DbType string
+
+const (
+	DbMysql    DbType = "mysql"
+	DbMaria    DbType = "mariadb"
+	DbPostgres DbType = "postgres"
+)
+
+type Destination struct {
+	Path  string
+	Keep  int
+	Owner string
+	Group string
+	Mode  string
 }
 
 type EmailNotify struct {
@@ -45,29 +77,16 @@ type EmailNotify struct {
 	To       []string
 }
 
-// local type to unmarshal
-type profile struct {
-	Name        string
-	Remote      RemoteCfg
-	Dirs        []backupDir
-	Mysql       []MysqlBackup
-	Destination string
-	Keep        int
-	Owner       string
-	Mode        string
-	Notify      EmailNotify
-}
-
-type Profile struct {
-	Name        string
-	IsRemote    bool
-	Remote      RemoteCfg
-	Dirs        []BackupDir
-	Mysql       []MysqlBackup
-	Destination string
-	Keep        int
-	Owner       string
-	Mode        string
-	Notify      bool
-	NotifyCfg   EmailNotify
+// IsEmpty check if all the notification fields are of type default zero
+func (m EmailNotify) IsEmpty() bool {
+	if m.Host != "" ||
+		m.Port != "" ||
+		m.User != "" ||
+		m.Password != "" {
+		return false
+	}
+	if len(m.To) > 0 {
+		return false
+	}
+	return true
 }

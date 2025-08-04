@@ -1,30 +1,41 @@
 ---
+version: 1
+name: "remote"
+type: "remote"
 
-name: remote
-
-remote:
-    type: sshPassword
+ssh:
+    type: password
     host: bla.ble.com
     port: 22
     user: user
     password: bla
     privateKey: privKey
-    passPhrase: pass
+    passphrase: pass
 
 dirs:
-  - root: relative/path
+  - path: "relative/path"
     exclude:
       - "*.log"
+  - path: "/backup/service2"
 
-mysql:
-  - dbname: dbname
+dbs:
+  - name: dbname
+    type: mysql
     user: user
-    pw: pw
+    password: pw
 
-syncBackups:
-  remotePath: "/bla"
+destination:
+  path: /backups
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
 
-destination: /backups
-keep: 3
-owner : "ble"
-mode : "0700"
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

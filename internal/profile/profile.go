@@ -10,18 +10,17 @@ import (
 	"strings"
 )
 
-// check if all the notification fields are of type default zero
-func (m EmailNotify) isEmpty() bool {
-	if m.Host != "" ||
-		m.Port != "" ||
-		m.User != "" ||
-		m.Password != "" {
-		return false
+// unmarshal the yaml into small struct to get the version of the config file
+func getVersion(data []byte) (int, error) {
+	type vStruct struct {
+		Version int
 	}
-	if len(m.To) > 0 {
-		return false
+	d := &vStruct{}
+	err := yaml.Unmarshal(data, &d)
+	if err != nil {
+		return 0, err
 	}
-	return true
+	return d.Version, nil
 }
 
 // LoadProfile loads a profile from a yaml file
@@ -38,75 +37,117 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, err
 	}
 
-	p := profile{}
-	err = yaml.Unmarshal(data, &p)
+	version, err := getVersion(data)
+	if err != nil {
+		return Profile{}, fmt.Errorf("unable to get profile version: %w", err)
+	}
+
+	switch version {
+	case 1:
+		return loadProfileV1(data)
+	default:
+		return Profile{}, fmt.Errorf("unsupported profile version: %d", version)
+	}
+}
+
+type profileV1 struct {
+	Name string
+	Type ProfileType
+
+	Ssh  Ssh
+	Dirs []struct {
+		Path    string
+		Exclude []string
+	}
+	Dbs []BackupDb
+
+	Destination Destination
+	Notify      EmailNotify
+}
+
+// load Profile V1 and return a valid profile
+func loadProfileV1(data []byte) (Profile, error) {
+	p := profileV1{}
+	err := yaml.Unmarshal(data, &p)
 	if err != nil {
 		return Profile{}, err
 	}
 
 	ret := Profile{
 		Name:        p.Name,
-		Mysql:       p.Mysql,
+		Type:        ProfileType(strings.ToLower(string(p.Type))),
+		Ssh:         p.Ssh,
 		Destination: p.Destination,
-		Keep:        p.Keep,
-		Owner:       p.Owner,
-		Mode:        p.Mode,
+		Notify:      p.Notify,
 	}
+
+	// ensure values are lower type
+	ret.Ssh.Type = ConnType(strings.ToLower(string(p.Ssh.Type)))
 
 	if ret.Name == "" {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	if p.Remote.AuthType != "" {
-		t := p.Remote.AuthType
-		if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
-			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
-		}
-		if p.Remote.Host == "" {
-			return Profile{}, fmt.Errorf("remote host cannot be empty")
-		}
-
-		ret.Remote = p.Remote
-		ret.IsRemote = true
-
-		if ret.Remote.Port == "" {
-			ret.Remote.Port = getDefaultPort(t)
-		}
-	}
-
-	// check notification config
-	if !p.Notify.isEmpty() {
-		ret.Notify = true
-		ret.NotifyCfg = p.Notify
-	}
+	//if p.Remote.AuthType != "" {
+	//	t := p.Remote.AuthType
+	//	if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
+	//		return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
+	//	}
+	//	if p.Remote.Host == "" {
+	//		return Profile{}, fmt.Errorf("remote host cannot be empty")
+	//	}
+	//
+	//	ret.Remote = p.Remote
+	//	ret.IsRemote = true
+	//
+	//	if ret.Remote.Port == "" {
+	//		ret.Remote.Port = getDefaultPort(t)
+	//	}
+	//}
+	//
 
 	// handle directories
-	for _, bd := range p.Dirs {
-		d := BackupDir{
-			Root: bd.Root,
+	for _, dir := range p.Dirs {
+		d := BackupPath{
+			Path: dir.Path,
 		}
-		for _, excl := range bd.Exclude {
+		for _, excl := range dir.Exclude {
 			g, gerr := glob.Compile(excl)
 			if gerr != nil {
 				return Profile{}, gerr
 			}
 			d.Exclude = append(d.Exclude, g)
 		}
+		if d.Path == "" {
+			return Profile{}, errors.New("profile path cannot be empty")
+		}
 		ret.Dirs = append(ret.Dirs, d)
-
 	}
+
+	// Handle DBs
+	for _, db := range p.Dbs {
+		d := BackupDb{
+			Name:     db.Name,
+			Type:     DbType(strings.ToLower(string(db.Type))),
+			User:     db.User,
+			Password: db.Password,
+		}
+		ret.Dbs = append(ret.Dbs, d)
+	}
+
+	//spew.Dump(ret)
 
 	return ret, nil
 }
 
-func getDefaultPort(in AuthType) string {
-	switch in {
-	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
-		return "22"
-	default:
-		return ""
-	}
-}
+//func getDefaultPort(in AuthType) string {
+//	switch in {
+//	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
+//		return "22"
+//	default:
+//		return ""
+//	}
+//}
 
 const profileExt = ".backup.yaml"
 
@@ -153,6 +194,7 @@ func LoadProfiles(dir string) ([]Profile, error) {
 	return profiles, err
 }
 
+// todo replace with embedd
 func Boilerplate() string {
 	s := `---
 # make sure your filename end with .backup.yaml to be picked up.

@@ -21,32 +21,44 @@ func TestLoadProfile(t *testing.T) {
 			name: "local backup",
 			file: "sampledata/local.backup.yaml",
 			want: Profile{
-				Name: "test",
-				Dirs: []BackupDir{
+				Name: "localBackup",
+				Type: TypeLocal,
+				Dirs: []BackupPath{
 					{
-						Root: "/bla",
+						Path: "/bla",
 						Exclude: []glob.Glob{
 							getGlob("*.log"),
 						},
 					},
 					{
-						Root: "/ble",
+						Path: "/ble",
 						Exclude: []glob.Glob{
 							getGlob("*.logs"),
 						},
 					},
 				},
-				Mysql: []MysqlBackup{
+				Dbs: []BackupDb{
 					{
-						DbName: "dbname",
-						User:   "user",
-						Pw:     "pw",
+						Name:     "dbname",
+						User:     "user",
+						Password: "pw",
+						Type:     DbMysql,
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Group: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
+					Host:     "smtp.mail.com",
+					Port:     "587",
+					User:     "mail@mails.com",
+					Password: "1234",
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
+				},
 			},
 		},
 
@@ -54,67 +66,83 @@ func TestLoadProfile(t *testing.T) {
 			name: "profile with remote configuration",
 			file: "sampledata/remote.backup.yaml",
 			want: Profile{
-				Name:     "remote",
-				IsRemote: true,
-				Remote: RemoteCfg{
-					AuthType:   "sshPassword",
+				Name: "remote",
+				Type: TypeRemote,
+				Ssh: Ssh{
+					Type:       ConnTypePasswd,
 					Host:       "bla.ble.com",
-					Port:       "22",
+					Port:       22,
 					User:       "user",
 					Password:   "bla",
 					PrivateKey: "privKey",
-					PassPhrase: "pass",
+					Passphrase: "pass",
 				},
-				Dirs: []BackupDir{
+				Dirs: []BackupPath{
 					{
-						Root: "relative/path",
+						Path: "relative/path",
 						Exclude: []glob.Glob{
 							getGlob("*.log"),
 						},
 					},
-				},
-				Mysql: []MysqlBackup{
 					{
-						DbName: "dbname",
-						User:   "user",
-						Pw:     "pw",
+						Path: "/backup/service2",
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
-			},
-		},
-
-		{
-			name: "profile with email notification",
-			file: "sampledata/email.backup.yaml",
-			want: Profile{
-				Name: "email",
-
-				Dirs: []BackupDir{
+				Dbs: []BackupDb{
 					{
-						Root: "relative",
-						Exclude: []glob.Glob{
-							getGlob("*.log"),
-						},
+						Name:     "dbname",
+						User:     "user",
+						Password: "pw",
+						Type:     "mysql",
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
-				Notify:      true,
-				NotifyCfg: EmailNotify{
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Group: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
 					Host:     "smtp.mail.com",
 					Port:     "587",
 					User:     "mail@mails.com",
 					Password: "1234",
-					To: []string{
-						"mail1@mail.com",
-						"mail2@mail.com",
-					},
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
+				},
+			},
+		},
+
+		{
+			name: "profile with sftp sync",
+			file: "sampledata/sftpSync.backup.yaml",
+			want: Profile{
+				Name: "sftpSync",
+				Type: TypeSftpSync,
+				Ssh: Ssh{
+					Type:       ConnTypeSshKey,
+					Host:       "bla.ble.com",
+					Port:       22,
+					PrivateKey: "/path/To/key",
+					Passphrase: "pass",
+				},
+				Dirs: []BackupPath{
+					{Path: "/backup/service1"},
+					{Path: "/backup/service2"},
+				},
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Group: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
+					Host:     "smtp.mail.com",
+					Port:     "587",
+					User:     "mail@mails.com",
+					Password: "1234",
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
 				},
 			},
 		},
@@ -134,30 +162,29 @@ func TestLoadProfile(t *testing.T) {
 		})
 	}
 
-	//
-	//t.Run("load nonexistent file", func(t *testing.T) {
-	//	_, err := LoadProfileFile("sampledata/nonexistent.yaml")
-	//	if err == nil {
-	//		t.Fatal("expecting an error but none was returned")
-	//	}
-	//
-	//	expectedErr := "open sampledata/nonexistent.yaml: no such file or directory"
-	//	if err.Error() != expectedErr {
-	//		t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
-	//	}
-	//})
-	//
-	//t.Run("load from wrong file type", func(t *testing.T) {
-	//	_, err := LoadProfileFile("sampledata/json.json")
-	//	if err == nil {
-	//		t.Fatal("expecting an error but none was returned")
-	//	}
-	//
-	//	expectedErr := "profile path is not a .yaml file"
-	//	if err.Error() != expectedErr {
-	//		t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
-	//	}
-	//})
+	t.Run("load nonexistent file", func(t *testing.T) {
+		_, err := LoadProfile("sampledata/nonexistent.yaml")
+		if err == nil {
+			t.Fatal("expecting an error but none was returned")
+		}
+
+		expectedErr := "open sampledata/nonexistent.yaml: no such file or directory"
+		if err.Error() != expectedErr {
+			t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
+		}
+	})
+
+	t.Run("load from wrong file type", func(t *testing.T) {
+		_, err := LoadProfile("sampledata/json.json")
+		if err == nil {
+			t.Fatal("expecting an error but none was returned")
+		}
+
+		expectedErr := "profile path is not a .yaml file"
+		if err.Error() != expectedErr {
+			t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
+		}
+	})
 
 }
 
@@ -216,9 +243,9 @@ func TestLoadProfiles(t *testing.T) {
 			got = append(got, p.Name)
 		}
 		want := []string{
-			"email",
-			"test",
+			"localBackup",
 			"remote",
+			"sftpSync",
 		}
 		if diff := cmp.Diff(got, want); diff != "" {
 			t.Errorf("output mismatch (-got +want):\n%s", diff)

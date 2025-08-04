@@ -1,14 +1,27 @@
 ---
+version: 1
+type: "local"
 
 dirs:
-  - root: relative
+  - root: /bla
+    followsymlinks: false
     exclude:
       - "*.log"
+  - root: /ble
+    followsymlinks: true
+    exclude:
+      - "*.logs"
+mysql:
+  - dbname: dbname
+    user: user
+    pw: pw
 
-destination: /backups
-keep: 3
-owner : "ble"
-mode : "0700"
+destination:
+  path:   "/backup"
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
 
 notify:
   host: smtp.mail.com
