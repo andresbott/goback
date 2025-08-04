@@ -3,6 +3,7 @@ package profile
 import (
 	"github.com/gobwas/glob"
 	"github.com/google/go-cmp/cmp"
+	"strings"
 	"testing"
 )
 
@@ -158,6 +159,61 @@ func TestLoadProfile(t *testing.T) {
 			want := tc.want
 			if diff := cmp.Diff(got, want); diff != "" {
 				t.Errorf("output mismatch (-got +want):\n%s", diff)
+			}
+		})
+	}
+
+	tcsErr := []struct {
+		name      string
+		file      string
+		wantError string
+	}{
+		{
+			name:      "file not found",
+			file:      "sampledata/doesnotexist.yaml",
+			wantError: "no such file or directory",
+		},
+		{
+			name:      "malformed YAML",
+			file:      "sampledata/errCases/malformed.yaml", // e.g. missing colons or incorrect indentation
+			wantError: "yaml",
+		},
+		{
+			name:      "missing required field (type)",
+			file:      "sampledata/errCases/missing_type.yaml", // omits the 'type' field
+			wantError: "profile has no type",
+		},
+		{
+			name:      "invalid backup type",
+			file:      "sampledata/errCases/invalid_type.yaml", // e.g. `type: unknownType`
+			wantError: "invalid type",
+		},
+		{
+			name:      "invalid glob pattern in exclude",
+			file:      "sampledata/errCases/invalid_glob.yaml", // e.g. `exclude: [ "**[.log" ]`
+			wantError: "unable to compile exclude pattern",
+		},
+		{
+			name:      "invalid port (non-numeric)",
+			file:      "sampledata/errCases/invalid_port.yaml", // e.g. `port: abc`
+			wantError: "cannot unmarshal",
+		},
+		{
+			name:      "missing version",
+			file:      "sampledata/errCases/missing_version.yaml", // e.g. `port: abc`
+			wantError: "unsupported profile version: 0",
+		},
+	}
+
+	for _, tc := range tcsErr {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := LoadProfile(tc.file)
+			if err == nil {
+				t.Fatal("expected an error but got nil")
+			}
+
+			if !strings.Contains(err.Error(), tc.wantError) {
+				t.Errorf("expected error to contain %q, got: %v", tc.wantError, err)
 			}
 		})
 	}

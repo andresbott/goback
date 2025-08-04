@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -73,12 +74,20 @@ func loadProfileV1(data []byte) (Profile, error) {
 		return Profile{}, err
 	}
 
+	if p.Type == "" {
+		return Profile{}, errors.New("profile has no type")
+	}
+
 	ret := Profile{
 		Name:        p.Name,
 		Type:        ProfileType(strings.ToLower(string(p.Type))),
 		Ssh:         p.Ssh,
 		Destination: p.Destination,
 		Notify:      p.Notify,
+	}
+
+	if !slices.Contains([]ProfileType{TypeSftpSync, TypeLocal, TypeRemote}, ret.Type) {
+		return Profile{}, errors.New("profile has invalid type")
 	}
 
 	// ensure values are lower type
@@ -88,6 +97,7 @@ func loadProfileV1(data []byte) (Profile, error) {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
+	// TODO add test cases
 	//if p.Remote.AuthType != "" {
 	//	t := p.Remote.AuthType
 	//	if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
@@ -114,7 +124,7 @@ func loadProfileV1(data []byte) (Profile, error) {
 		for _, excl := range dir.Exclude {
 			g, gerr := glob.Compile(excl)
 			if gerr != nil {
-				return Profile{}, gerr
+				return Profile{}, fmt.Errorf("unable to compile exclude pattern: %w", gerr)
 			}
 			d.Exclude = append(d.Exclude, g)
 		}

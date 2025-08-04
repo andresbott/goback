@@ -43,6 +43,7 @@ func newRootCommand() *cobra.Command {
 		versionCmd(),
 		generateCmd(),
 		backupCmd(),
+		validateCmd(),
 	)
 
 	return cmd
@@ -128,6 +129,28 @@ func backupFromDir(absPath string, logger *slog.Logger) error {
 	}
 
 	return nil
+}
+
+func validateCmd() *cobra.Command {
+	loglevel := "info"
+	cmd := cobra.Command{
+		Use:   "validate",
+		Short: "validate a profile or a directory ",
+		Long:  `validate a profile or a directory `,
+		Run: func(cmd *cobra.Command, args []string) {
+			// TODO implement
+			panic("not implemented")
+		},
+	}
+
+	// hide persistent flag on this command
+	cmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
+		_ = command.Flags().MarkHidden("pers")
+		command.Parent().HelpFunc()(command, strings)
+	})
+	cmd.Flags().StringVarP(&loglevel, "loglevel", "l", loglevel, "Set the log level")
+
+	return &cmd
 }
 
 func generateCmd() *cobra.Command {
