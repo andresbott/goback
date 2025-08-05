@@ -36,9 +36,9 @@ type Ssh struct {
 type ConnType string
 
 const (
-	ConnTypePasswd  ConnType = "password"
-	ConnTypeSshKey  ConnType = "sshkey"
-	ConnTypeSshAgen ConnType = "sshagent"
+	ConnTypePasswd   ConnType = "password"
+	ConnTypeSshKey   ConnType = "sshkey"
+	ConnTypeSshAgent ConnType = "sshagent"
 )
 
 // BackupPath Holds the details about a path to include in the backup
@@ -65,7 +65,6 @@ type Destination struct {
 	Path  string
 	Keep  int
 	Owner string
-	Group string
 	Mode  string
 }
 
@@ -77,8 +76,8 @@ type EmailNotify struct {
 	To       []string
 }
 
-// IsEmpty check if all the notification fields are of type default zero
-func (m EmailNotify) IsEmpty() bool {
+// HasValues check if all the notification fields are of type default zero
+func (m EmailNotify) HasValues() bool {
 	if m.Host != "" ||
 		m.Port != "" ||
 		m.User != "" ||

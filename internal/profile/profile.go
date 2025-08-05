@@ -68,56 +68,60 @@ type profileV1 struct {
 
 // load Profile V1 and return a valid profile
 func loadProfileV1(data []byte) (Profile, error) {
-	p := profileV1{}
-	err := yaml.Unmarshal(data, &p)
+	loadedProfile := profileV1{}
+	err := yaml.Unmarshal(data, &loadedProfile)
 	if err != nil {
 		return Profile{}, err
 	}
 
-	if p.Type == "" {
+	if loadedProfile.Type == "" {
 		return Profile{}, errors.New("profile has no type")
 	}
 
-	ret := Profile{
-		Name:        p.Name,
-		Type:        ProfileType(strings.ToLower(string(p.Type))),
-		Ssh:         p.Ssh,
-		Destination: p.Destination,
-		Notify:      p.Notify,
+	returnProfile := Profile{
+		Name:        loadedProfile.Name,
+		Type:        ProfileType(strings.ToLower(string(loadedProfile.Type))),
+		Ssh:         loadedProfile.Ssh,
+		Destination: loadedProfile.Destination,
+		Notify:      loadedProfile.Notify,
 	}
 
-	if !slices.Contains([]ProfileType{TypeSftpSync, TypeLocal, TypeRemote}, ret.Type) {
+	if !slices.Contains([]ProfileType{TypeSftpSync, TypeLocal, TypeRemote}, returnProfile.Type) {
 		return Profile{}, errors.New("profile has invalid type")
 	}
 
 	// ensure values are lower type
-	ret.Ssh.Type = ConnType(strings.ToLower(string(p.Ssh.Type)))
+	returnProfile.Ssh.Type = ConnType(strings.ToLower(string(loadedProfile.Ssh.Type)))
 
-	if ret.Name == "" {
+	if returnProfile.Name == "" {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	// TODO add test cases
-	//if p.Remote.AuthType != "" {
-	//	t := p.Remote.AuthType
-	//	if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
-	//		return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
-	//	}
-	//	if p.Remote.Host == "" {
-	//		return Profile{}, fmt.Errorf("remote host cannot be empty")
-	//	}
-	//
-	//	ret.Remote = p.Remote
-	//	ret.IsRemote = true
-	//
-	//	if ret.Remote.Port == "" {
-	//		ret.Remote.Port = getDefaultPort(t)
-	//	}
-	//}
-	//
+	// requires ssh config
+	if slices.Contains([]ProfileType{TypeSftpSync, TypeRemote}, returnProfile.Type) {
+		// need to validate remote connection data
+
+		if !slices.Contains([]ConnType{ConnTypeSshKey, ConnTypePasswd, ConnTypeSshAgent}, returnProfile.Ssh.Type) || returnProfile.Ssh.Type == "" {
+			return Profile{}, errors.New("profile has invalid ssh connection type")
+		}
+		if returnProfile.Ssh.Host == "" {
+			return Profile{}, errors.New("profile ssh host cannot be empty")
+		}
+
+		if returnProfile.Ssh.Port == 0 {
+			returnProfile.Ssh.Port = 22
+		}
+	}
+
+	// requires bbackup targets
+	if slices.Contains([]ProfileType{TypeLocal, TypeRemote}, returnProfile.Type) {
+		if len(loadedProfile.Dbs) == 0 && len(loadedProfile.Dirs) == 0 {
+			return Profile{}, errors.New("nothing to backup")
+		}
+	}
 
 	// handle directories
-	for _, dir := range p.Dirs {
+	for _, dir := range loadedProfile.Dirs {
 		d := BackupPath{
 			Path: dir.Path,
 		}
@@ -131,36 +135,26 @@ func loadProfileV1(data []byte) (Profile, error) {
 		if d.Path == "" {
 			return Profile{}, errors.New("profile path cannot be empty")
 		}
-		ret.Dirs = append(ret.Dirs, d)
+		returnProfile.Dirs = append(returnProfile.Dirs, d)
 	}
 
 	// Handle DBs
-	for _, db := range p.Dbs {
+	for _, db := range loadedProfile.Dbs {
 		d := BackupDb{
 			Name:     db.Name,
 			Type:     DbType(strings.ToLower(string(db.Type))),
 			User:     db.User,
 			Password: db.Password,
 		}
-		ret.Dbs = append(ret.Dbs, d)
+		returnProfile.Dbs = append(returnProfile.Dbs, d)
 	}
-
-	//spew.Dump(ret)
-
-	return ret, nil
+	return returnProfile, nil
 }
-
-//func getDefaultPort(in AuthType) string {
-//	switch in {
-//	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
-//		return "22"
-//	default:
-//		return ""
-//	}
-//}
 
 const profileExt = ".backup.yaml"
 
+// LoadProfiles will try to load all profiles in a directory, no error is returned if all profiles are ok
+// if any profile is incomplete, the slice of profiles still contain the valid profiles
 func LoadProfiles(dir string) ([]Profile, error) {
 
 	// check if dir exists
@@ -186,22 +180,17 @@ func LoadProfiles(dir string) ([]Profile, error) {
 	}
 
 	var profiles []Profile
-	var errs []string
-
+	var errs error
 	for _, file := range files {
 		p, perr := LoadProfile(file)
 		if perr != nil {
-			errs = append(errs, file)
+			errs = errors.Join(errs, fmt.Errorf("failed to load profile %s: %w", file, perr))
 			continue
 		}
 		profiles = append(profiles, p)
 	}
 
-	if len(errs) > 0 {
-		err = errors.New("errors loading profile from files: " + strings.Join(errs, ","))
-	}
-
-	return profiles, err
+	return profiles, errs
 }
 
 // todo replace with embedd

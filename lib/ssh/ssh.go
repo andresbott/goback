@@ -206,13 +206,13 @@ func (sshc *Client) Connect() error {
 	return nil
 }
 
-func GetAuthType(in profile.AuthType) AuthType {
+func GetAuthType(in profile.ConnType) AuthType {
 	switch in {
-	case "sshPassword":
+	case profile.ConnTypePasswd:
 		return Password
-	case "sshKey":
+	case profile.ConnTypeSshKey:
 		return PrivateKey
-	case "sshAgent":
+	case profile.ConnTypeSshAgent:
 		return SshAgent
 	default:
 		return Password

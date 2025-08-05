@@ -120,6 +120,7 @@ func backupFromDir(absPath string, logger *slog.Logger) error {
 	}
 	err := runner.LoadProfilesDir(absPath)
 	if err != nil {
+		// TODO capture the errors but still run the correct profiles
 		return err
 	}
 

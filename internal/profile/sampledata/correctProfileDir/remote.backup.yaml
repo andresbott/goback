@@ -1,0 +1,41 @@
+---
+version: 1
+name: "remote"
+type: "remote"
+
+ssh:
+    type: password
+    host: bla.ble.com
+    port: 2222
+    user: user
+    password: bla
+    privateKey: privKey
+    passphrase: pass
+
+dirs:
+  - path: "relative/path"
+    exclude:
+      - "*.log"
+  - path: "/backup/service2"
+
+dbs:
+  - name: dbname
+    type: mysql
+    user: user
+    password: pw
+
+destination:
+  path: /backups
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

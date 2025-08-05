@@ -6,7 +6,7 @@ type: "sftpsync"
 ssh:
   type: sshkey
   host: bla.ble.com
-  port: 22
+  #  port: 22 # explicitly commented out to ensure default is populated
   privateKey: /path/To/key
   passphrase: pass
 

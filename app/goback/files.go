@@ -17,9 +17,9 @@ type fileAdder interface {
 }
 
 // copyLocalFiles takes a single backup dir, recursively traverses the files and adds them to the zip handler
-func copyLocalFiles(dir profile.BackupDir, fa fileAdder) error {
+func copyLocalFiles(dir profile.BackupPath, fa fileAdder) error {
 
-	rootDir := dir.Root
+	rootDir := dir.Path
 
 	// check if dir exists
 	finfo, err := os.Lstat(rootDir)
@@ -77,7 +77,7 @@ func copyLocalFiles(dir profile.BackupDir, fa fileAdder) error {
 
 		// add the directory base to the destination
 		// here we use the profile root not the calculated one in case of  symlink
-		relPath = filepath.Join(filepath.Base(dir.Root), relPath)
+		relPath = filepath.Join(filepath.Base(dir.Path), relPath)
 
 		// if target is a symlink add the symlink
 		if info.Mode()&os.ModeSymlink == os.ModeSymlink { // & is a bit AND
@@ -104,7 +104,7 @@ func copyLocalFiles(dir profile.BackupDir, fa fileAdder) error {
 }
 
 // copyRemoteFiles takes a single backup dir, connects over ssh and recursively traverses the files and adds them to the zip handler
-func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) (err error) {
+func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupPath, zh *zip.Handler) (err error) {
 
 	sftpc, err := sftp.NewClient(sshc.Connection())
 	if err != nil {
@@ -114,7 +114,7 @@ func copyRemoteFiles(sshc *ssh.Client, dir profile.BackupDir, zh *zip.Handler) (
 		err = errors.Join(err, sftpc.Close())
 	}()
 
-	rootDir := dir.Root
+	rootDir := dir.Path
 	if !filepath.IsAbs(rootDir) {
 		wd, err := sftpc.Getwd()
 		if err != nil {

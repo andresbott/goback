@@ -25,13 +25,13 @@ func TestCopyLocalFiles(t *testing.T) {
 
 	tcs := []struct {
 		name    string
-		profile profile.BackupDir
+		profile profile.BackupPath
 		want    []string
 	}{
 		{
 			name: "expect all files processed correctly",
-			profile: profile.BackupDir{
-				Root:    "sampledata/files",
+			profile: profile.BackupPath{
+				Path:    "sampledata/files",
 				Exclude: nil,
 			},
 			want: []string{
@@ -46,8 +46,8 @@ func TestCopyLocalFiles(t *testing.T) {
 
 		{
 			name: "expect files to be filtered out, multiple filters",
-			profile: profile.BackupDir{
-				Root: "sampledata/files",
+			profile: profile.BackupPath{
+				Path: "sampledata/files",
 				Exclude: []glob.Glob{
 					getGlob("*.log"),
 					getGlob("*.txt"),
@@ -63,8 +63,8 @@ func TestCopyLocalFiles(t *testing.T) {
 
 		{
 			name: "expect full directory to be excluded",
-			profile: profile.BackupDir{
-				Root: "sampledata/files",
+			profile: profile.BackupPath{
+				Path: "sampledata/files",
 				Exclude: []glob.Glob{
 					getGlob("sampledata/files/dir1/subdir1/*"),
 				},
@@ -78,8 +78,8 @@ func TestCopyLocalFiles(t *testing.T) {
 		},
 		{
 			name: "expect root symlink evaluated and backed up",
-			profile: profile.BackupDir{
-				Root: "sampledata/files/notRoot/link",
+			profile: profile.BackupPath{
+				Path: "sampledata/files/notRoot/link",
 				Exclude: []glob.Glob{
 					getGlob("*.txt"),
 				},
@@ -91,8 +91,8 @@ func TestCopyLocalFiles(t *testing.T) {
 		},
 		{
 			name: "don't follow child symlinks",
-			profile: profile.BackupDir{
-				Root: "sampledata/files/",
+			profile: profile.BackupPath{
+				Path: "sampledata/files/",
 				Exclude: []glob.Glob{
 					getGlob("sampledata/files/dir1/*"),
 					getGlob("sampledata/files/dir2/*"),

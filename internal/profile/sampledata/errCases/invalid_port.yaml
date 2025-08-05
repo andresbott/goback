@@ -5,3 +5,10 @@ type: remote
 ssh:
   host: example.com
   port: abc
+
+dirs:
+  - path: "relative/path"
+    exclude:
+      - "*.log"
+  - path: "/backup/service2"
+

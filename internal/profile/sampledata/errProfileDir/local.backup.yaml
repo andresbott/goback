@@ -1,31 +1,23 @@
 ---
 version: 1
-name: "remote"
-type: "remote"
-
-ssh:
-    type: password
-    host: bla.ble.com
-    port: 22
-    user: user
-    password: bla
-    privateKey: privKey
-    passphrase: pass
+name: "localBackup"
+type: "Local" # explicitly making it the first letter upper case to test proper handling
 
 dirs:
-  - path: "relative/path"
+  - path: /bla
     exclude:
       - "*.log"
-  - path: "/backup/service2"
-
+  - path: /ble
+    exclude:
+      - "*.logs"
 dbs:
   - name: dbname
-    type: mysql
+    type: Mysql # explicitly making it the first letter upper case to test proper handling
     user: user
     password: pw
 
 destination:
-  path: /backups
+  path:   "/backups"
   keep: 3
   owner: "ble"
   group: "ble"

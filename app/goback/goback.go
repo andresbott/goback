@@ -40,167 +40,129 @@ func (br *BackupRunner) LoadProfileFile(file string) error {
 }
 
 // LoadProfilesDir adds all the profiles found in the directory to the list of profiles to be executed
+// note that profile.LoadProfiles returns a partial correct result, hence even if there were errors
+// the callers can still run the correct profiles.
 func (br *BackupRunner) LoadProfilesDir(dir string) error {
 
 	br.Logger.Info("Loading profile directory", "dor", dir)
 
 	prfl, err := profile.LoadProfiles(dir)
+	// we still want to append the correct profiles
+	br.profiles = append(br.profiles, prfl...)
 	if err != nil {
 		return err
 	}
-	br.profiles = append(br.profiles, prfl...)
 	return nil
 }
 
 // Run executes all the profiles loaded
 func (br *BackupRunner) Run() error {
 
-	hadErr := false
+	var errs error
 
 	for _, prfl := range br.profiles {
-
-		br.Logger.Info("Loading profile", "name", prfl.Name)
-		start := time.Now()
-
-		// run sync
-		if prfl.SyncBackup.RemotePath != "" {
-
-			start2 := time.Now()
-			err := br.syncRemoteBackup(prfl)
-			if err != nil {
-				if prfl.Notify {
-					// ignore notification error
-					_ = NotifyFailure(prfl.NotifyCfg, err)
-				}
-				capturedErrs = true
-
-				continue
-			}
-
-			t2 := time.Now()
-			elapsed2 := t2.Sub(start2)
-
-		}
-
-		// run backup
-		err := BackupProfile(prfl, br.Logger, getZipName(prfl.Name))
-		if err != nil {
-			hadErr = true
-			br.Logger.Error("Error in backup of profile", "err", err)
-			if prfl.Notify {
-				err2 := NotifyFailure(prfl.NotifyCfg, err)
-				if err2 != nil {
-					br.Logger.Error("Error while sending notification", "err", err)
-				}
-			}
-			continue
-		}
-
-		t := time.Now()
-		elapsed := t.Sub(start)
-		br.Logger.Info("Backup duration", "dur", elapsed)
-
-		// delete old backup files
-		br.Logger.Info("Deleting older backups for profile", "name", prfl.Name)
-		err = ExpurgeDir(prfl.Destination, prfl.Keep, prfl.Name, br.Logger)
-		if err != nil {
-			hadErr = true
-			br.Logger.Error("Error deleting files for profile", "err", err)
-			if prfl.Notify {
-				err2 := NotifyFailure(prfl.NotifyCfg, err)
-				if err2 != nil {
-					br.Logger.Error("Error while sending notification", "err", err)
-				}
-			}
-			continue
-		}
-
-		// notify about completion
-		if prfl.Notify {
-			err2 := NotifySuccess(prfl.NotifyCfg)
-			if err2 != nil {
-				br.Logger.Error("Error while sending notification", "err", err)
-			}
-		}
+		err := br.RunProfile(prfl)
+		errs = errors.Join(errs, fmt.Errorf("profile %s failed: %w", prfl.Name, err))
 	}
 
-	if hadErr {
+	if errs != nil {
+		// we don't need to unwarp the errors, they are logged already (?)
 		return errors.New("at least one profile execution was not successful")
 	}
 	return nil
 }
 
-// BackupProfile takes a single profile as input and generates a single Zip backup as output
-// the sources of backup can be either local fs or sftp connection
-func BackupProfile(prfl profile.Profile, log *slog.Logger, zipName string) error {
+// RunProfile Runs a single backup profile
+func (br *BackupRunner) RunProfile(prfl profile.Profile) error {
+	br.Logger.Info("Loading profile", "name", prfl.Name)
+	start := time.Now()
 
-	if len(prfl.Dirs) <= 0 && len(prfl.Mysql) <= 0 {
-		log.Warn("Nothing to backup, skipping.")
-		return nil
+	type runnerFn func(profile.Profile, *slog.Logger) error
+	var runFn runnerFn
+	switch prfl.Type {
+	case profile.TypeLocal:
+		runFn = runLocalProfile
+	case profile.TypeRemote:
+		runFn = runRemoteProfile
+	case profile.TypeSftpSync:
+		runFn = runSyncProfile
+	default:
+		return fmt.Errorf("unknown profile type: %s", prfl.Type)
 	}
 
+	err := RunWithNotify(prfl, br.Logger, runFn)
+	if err != nil {
+		return fmt.Errorf("profile %s failed: %w", prfl.Name, err)
+	}
+
+	t := time.Now()
+	elapsed := t.Sub(start)
+	br.Logger.Info("Backup duration", "dur", elapsed)
+	return nil
+}
+
+// RunWithNotify ias a wrapper function to the different profile runner functions, it will call the run function
+// and if the profile notification is defined it will send the profile owner notification out.
+func RunWithNotify(prfl profile.Profile, log *slog.Logger, fn func(prfl profile.Profile, log *slog.Logger) error) error {
+	err := fn(prfl, log)
+	if err != nil {
+		if prfl.Notify.HasValues() {
+			err2 := NotifyFailure(prfl.Notify, err)
+			if err2 != nil {
+				log.Error("Error while sending notification", "err", err)
+			}
+		}
+		return err
+	}
+	if prfl.Notify.HasValues() {
+		err2 := NotifySuccess(prfl.Notify)
+		if err2 != nil {
+			log.Error("Error while sending notification", "err", err)
+		}
+	}
+	return nil
+}
+
+// runLocalProfile takes a single profile as input and generates a single Zip backup as output
+// the sources of backup MUST  be a local profile
+func runLocalProfile(prfl profile.Profile, log *slog.Logger) error {
+
 	// check if destination dir exists, or create
-	err := prepDest(prfl.Destination)
+	err := prepareDestination(prfl.Destination.Path)
 	if err != nil {
 		return err
 	}
-	destZip := filepath.Join(prfl.Destination, zipName)
+	destZip := filepath.Join(prfl.Destination.Path)
 
-	// handle file backup
-	if prfl.IsRemote {
-		log.Info("backing up remote profile to file", "destination", destZip)
-		err = backupRemote(prfl, destZip, log)
-		if err != nil {
-			return delZipAndErr(destZip, err)
-		}
-	} else {
-		log.Info("backing up local profile to file", "destination", destZip)
-		err = backupLocal(prfl, destZip, log)
-		if err != nil {
-			return delZipAndErr(destZip, err)
-		}
+	log.Info("backing up local profile to file", "destination", destZip)
+	err = backupLocal(prfl, destZip, log)
+	if err != nil {
+		return delZipAndErr(destZip, err)
 	}
 
 	// change file ownership
-	if prfl.Owner != "" {
-		err := chown(destZip, prfl.Owner)
+	if prfl.Destination.Owner != "" {
+		err := chown(destZip, prfl.Destination.Owner)
 		if err != nil {
 			return fmt.Errorf("unable to change owner of file: \"%s\", %v", destZip, err)
 		}
 	}
 
 	// change file mode
-	if prfl.Mode != "" {
-		err := chmod(destZip, prfl.Mode)
+	if prfl.Destination.Mode != "" {
+		err := chmod(destZip, prfl.Destination.Mode)
 		if err != nil {
 			return fmt.Errorf("unable to change perm of file: \"%s\", %v", destZip, err)
 		}
 	}
-	return nil
-}
 
-// prepDest will create the destination if it does not exist
-//
-//nolint:nestif // accepted error handling
-func prepDest(dest string) error {
-	fInfo, err := os.Stat(dest)
+	// delete old backup files
+	log.Info("Deleting older backups for profile", "name", prfl.Name)
+	err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			mkdirErr := os.Mkdir(dest, 0750)
-			if mkdirErr != nil {
-				return fmt.Errorf("unable to create backup destination: %v", err)
-			}
-			fInfo, err = os.Stat(dest)
-			if err != nil {
-				return fmt.Errorf("unable to stat destination: %v", err)
-			}
-		} else {
-			return fmt.Errorf("unable to stat destination: %v", err)
-		}
+		return fmt.Errorf("error expurging old backup files: %w", err)
 	}
-	if !fInfo.IsDir() {
-		return errors.New("the output path is not a directory")
-	}
+
 	return nil
 }
 
@@ -214,7 +176,7 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 
 	// copy files into the zip
 	for _, bkpDir := range prfl.Dirs {
-		log.Info("backing up directory", "dir", bkpDir.Root)
+		log.Info("backing up directory", "dir", bkpDir.Path)
 		err = copyLocalFiles(bkpDir, zipHandler)
 		if err != nil {
 			return err
@@ -222,19 +184,25 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 	}
 
 	// dump mysql DBs into the zip
-	if len(prfl.Mysql) > 0 {
+	if len(prfl.Dbs) > 0 {
+		for _, db := range prfl.Dbs {
+			switch db.Type {
+			case profile.DbMysql:
+			case profile.DbMaria:
 
-		// check for mysqldump installed
-		binPath, err := mysqldump.GetBinPath()
-		if err != nil {
-			return err
-		}
+				// check for mysqldump installed
+				binPath, err := mysqldump.GetBinPath()
+				if err != nil {
+					return err
+				}
 
-		for _, db := range prfl.Mysql {
-			log.Info("backing up mysql database", "db", db.DbName)
-			err := copyLocalMysql(binPath, db, zipHandler)
-			if err != nil {
-				return err
+				log.Info("backing up mysql/mariaDB database", "db", db.Name)
+				err = copyLocalMysql(binPath, db, zipHandler)
+				if err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("unknown db type: %s", db.Type)
 			}
 		}
 	}
@@ -244,24 +212,62 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 	return nil
 }
 
+// runLocalProfile takes a single profile as input and generates a single Zip backup as output
+// the sources of backup MUST be a remote profile
+func runRemoteProfile(prfl profile.Profile, log *slog.Logger) error {
+
+	// check if destination dir exists, or create
+	err := prepareDestination(prfl.Destination.Path)
+	if err != nil {
+		return err
+	}
+	destZip := filepath.Join(prfl.Destination.Path)
+
+	log.Info("backing up remote profile to file", "destination", destZip)
+	err = backupRemote(prfl, destZip, log)
+	if err != nil {
+		return delZipAndErr(destZip, err)
+	}
+
+	// change file ownership
+	if prfl.Destination.Owner != "" {
+		err := chown(destZip, prfl.Destination.Owner)
+		if err != nil {
+			return fmt.Errorf("unable to change owner of file: \"%s\", %v", destZip, err)
+		}
+	}
+
+	// change file mode
+	if prfl.Destination.Mode != "" {
+		err := chmod(destZip, prfl.Destination.Mode)
+		if err != nil {
+			return fmt.Errorf("unable to change perm of file: \"%s\", %v", destZip, err)
+		}
+	}
+
+	// delete old backup files
+	log.Info("Deleting older backups for profile", "name", prfl.Name)
+	err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
+	if err != nil {
+		return fmt.Errorf("error expurging old backup files: %w", err)
+	}
+	return nil
+}
+
 // exposed internally for testing purposes only
 var ignoreHostKey = false
 
 // backupRemote will open an ssh connection to a remote location and run copy of files and dbs
 func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
-	port, err := strconv.Atoi(prfl.Remote.Port)
-	if err != nil {
-		return fmt.Errorf("error parsisng port: %v", err)
-	}
 
 	sshC, err := ssh.New(ssh.Cfg{
-		Host:          prfl.Remote.Host,
-		Port:          port,
-		Auth:          ssh.GetAuthType(prfl.Remote.AuthType),
-		User:          prfl.Remote.User,
-		Password:      prfl.Remote.Password,
-		PrivateKey:    prfl.Remote.PrivateKey,
-		PassPhrase:    prfl.Remote.PassPhrase,
+		Host:          prfl.Ssh.Host,
+		Port:          prfl.Ssh.Port,
+		Auth:          ssh.GetAuthType(prfl.Ssh.Type),
+		User:          prfl.Ssh.User,
+		Password:      prfl.Ssh.Password,
+		PrivateKey:    prfl.Ssh.PrivateKey,
+		PassPhrase:    prfl.Ssh.Passphrase,
 		IgnoreHostKey: ignoreHostKey, // set to false and only exposed for testing
 	})
 
@@ -283,24 +289,32 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 
 	// dump filesystem data into zip
 	for _, bkpDir := range prfl.Dirs {
-		log.Info("backing up directory", "dir", bkpDir.Root)
+		log.Info("backing up directory", "dir", bkpDir.Path)
 		err := copyRemoteFiles(sshC, bkpDir, zipHandler)
 		if err != nil {
 			return err
 		}
 	}
 
-	// dump mysql DBs into the zip
-	if len(prfl.Mysql) > 0 {
-		binPath, err := sshC.Which("mysqldump")
-		if err != nil {
-			return fmt.Errorf("error checking mysql binary: %v", err)
-		}
-		for _, db := range prfl.Mysql {
-			log.Info("backing up mysql database", "db", db.DbName)
-			err := copyRemoteMysql(sshC, binPath, db, zipHandler)
-			if err != nil {
-				return err
+	if len(prfl.Dbs) > 0 {
+		for _, db := range prfl.Dbs {
+			switch db.Type {
+			case profile.DbMysql:
+			case profile.DbMaria:
+
+				binPath, err := sshC.Which("mysqldump")
+				if err != nil {
+					return fmt.Errorf("error checking mysql binary: %v", err)
+				}
+
+				log.Info("backing up mysql database", "db", db.Name)
+				err = copyRemoteMysql(sshC, binPath, db, zipHandler)
+				if err != nil {
+					return err
+				}
+
+			default:
+				return fmt.Errorf("unknown db type: %s", db.Type)
 			}
 		}
 	}
@@ -310,53 +324,83 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 	return nil
 }
 
-// syncRemoteBackup takes a remote (sftp) location from the profile and downloads remote backups files
-// to the local location
-func (br *BackupRunner) syncRemoteBackup(prfl profile.Profile) error {
-	// check if destination dir exists
-	fInfo, err := os.Stat(prfl.Destination)
+func runSyncProfile(prfl profile.Profile, log *slog.Logger) error {
+	panic("not implemented")
+	return nil
+}
+
+//// syncRemoteBackup takes a remote (sftp) location from the profile and downloads remote backups files
+//// to the local location
+//func (br *BackupRunner) syncRemoteBackup(prfl profile.Profile) error {
+//	// check if destination dir exists
+//	fInfo, err := os.Stat(prfl.Destination)
+//	if err != nil {
+//		return fmt.Errorf("destination not found: %v", err)
+//	}
+//	if !fInfo.IsDir() {
+//		return errors.New("the output path is not a directory")
+//	}
+//
+//	// handle file backup
+//	if !prfl.IsRemote {
+//		return errors.New("sync backups only works with remote location enabled")
+//	}
+//
+//	port, err := strconv.Atoi(prfl.Remote.Port)
+//	if err != nil {
+//		return fmt.Errorf("error parsisng port: %v", err)
+//	}
+//
+//	sshC, err := ssh.New(ssh.Cfg{
+//		Host:          prfl.Remote.Host,
+//		Port:          port,
+//		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
+//		User:          prfl.Remote.User,
+//		Password:      prfl.Remote.Password,
+//		PrivateKey:    prfl.Remote.PrivateKey,
+//		PassPhrase:    prfl.Remote.PassPhrase,
+//		IgnoreHostKey: false, // no need to expose this for the moment
+//	})
+//
+//	if err != nil {
+//		return fmt.Errorf("error creating ssh client: %v", err)
+//	}
+//	err = sshC.Connect()
+//	if err != nil {
+//		return fmt.Errorf("error connecting ssh: %v", err)
+//	}
+//	defer func() {
+//		_ = sshC.Disconnect()
+//	}()
+//
+//	err = br.syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
+//	if err != nil {
+//		return fmt.Errorf("error running sftp backup profile: %v", err)
+//	}
+//	return nil
+//}
+
+// prepareDestination will create the destination if it does not exist
+//
+//nolint:nestif // accepted error handling
+func prepareDestination(dest string) error {
+	fInfo, err := os.Stat(dest)
 	if err != nil {
-		return fmt.Errorf("destination not found: %v", err)
+		if errors.Is(err, os.ErrNotExist) {
+			mkdirErr := os.Mkdir(dest, 0750)
+			if mkdirErr != nil {
+				return fmt.Errorf("unable to create backup destination: %v", err)
+			}
+			fInfo, err = os.Stat(dest)
+			if err != nil {
+				return fmt.Errorf("unable to stat destination: %v", err)
+			}
+		} else {
+			return fmt.Errorf("unable to stat destination: %v", err)
+		}
 	}
 	if !fInfo.IsDir() {
 		return errors.New("the output path is not a directory")
-	}
-
-	// handle file backup
-	if !prfl.IsRemote {
-		return errors.New("sync backups only works with remote location enabled")
-	}
-
-	port, err := strconv.Atoi(prfl.Remote.Port)
-	if err != nil {
-		return fmt.Errorf("error parsisng port: %v", err)
-	}
-
-	sshC, err := ssh.New(ssh.Cfg{
-		Host:          prfl.Remote.Host,
-		Port:          port,
-		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
-		User:          prfl.Remote.User,
-		Password:      prfl.Remote.Password,
-		PrivateKey:    prfl.Remote.PrivateKey,
-		PassPhrase:    prfl.Remote.PassPhrase,
-		IgnoreHostKey: false, // no need to expose this for the moment
-	})
-
-	if err != nil {
-		return fmt.Errorf("error creating ssh client: %v", err)
-	}
-	err = sshC.Connect()
-	if err != nil {
-		return fmt.Errorf("error connecting ssh: %v", err)
-	}
-	defer func() {
-		_ = sshC.Disconnect()
-	}()
-
-	err = br.syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
-	if err != nil {
-		return fmt.Errorf("error running sftp backup profile: %v", err)
 	}
 	return nil
 }

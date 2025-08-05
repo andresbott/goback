@@ -1,0 +1,28 @@
+---
+version: 1
+name: "remote"
+type: "remote"
+
+ssh:
+  type: illegal
+  host: bla.ble.com
+  port: 22
+  user: user
+  password: bla
+  privateKey: privKey
+  passphrase: pass
+
+dirs:
+  - path: "relative/path"
+    exclude:
+      - "*.log"
+  - path: "/backup/service2"
+
+
+destination:
+  path: /backups
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
