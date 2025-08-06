@@ -1,0 +1,8 @@
+---
+version: 1
+name: badGlob
+type: local
+dirs:
+  - path: /somepath
+    exclude:
+      - "**[.log"

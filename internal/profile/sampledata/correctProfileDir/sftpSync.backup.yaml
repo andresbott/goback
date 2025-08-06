@@ -1,0 +1,33 @@
+---
+version: 1
+name: "sftpSync"
+type: "sftpsync"
+
+ssh:
+  type: sshkey
+  host: bla.ble.com
+  #  port: 22 # explicitly commented out to ensure default is populated
+  privateKey: /path/To/key
+  passphrase: pass
+
+dirs:
+  - path: "/backup/service1"
+    name: "service1"
+  - path: "/backup/service2"
+    name: "service2"
+
+destination:
+  path:   "/backups"
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

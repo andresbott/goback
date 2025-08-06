@@ -12,20 +12,20 @@ import (
 )
 
 // dump a single database into a zip handler
-func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.Handler) error {
+func copyLocalMysql(binPath string, Db profile.BackupDb, zipHandler *zip.Handler) error {
 
 	dbHandler, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,
-		User:    dbPrfl.User,
-		Pw:      dbPrfl.Pw,
-		DbName:  dbPrfl.DbName,
+		User:    Db.User,
+		Pw:      Db.Password,
+		DbName:  Db.Name,
 	})
 
 	if err != nil {
 		return err
 	}
 
-	zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
+	zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", Db.Name+".dump.sql"))
 	if err != nil {
 		return err
 	}
@@ -36,12 +36,12 @@ func copyLocalMysql(binPath string, dbPrfl profile.MysqlBackup, zipHandler *zip.
 	return nil
 }
 
-func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBackup, zip *zip.Handler) (err error) {
+func copyRemoteMysql(sshc *ssh.Client, binPath string, Db profile.BackupDb, zip *zip.Handler) (err error) {
 	h, err := mysqldump.New(mysqldump.Cfg{
 		BinPath: binPath,
-		User:    dbPrfl.User,
-		Pw:      dbPrfl.Pw,
-		DbName:  dbPrfl.DbName,
+		User:    Db.User,
+		Pw:      Db.Password,
+		DbName:  Db.Name,
 	})
 	if err != nil {
 		return fmt.Errorf("nable to create mysqldump wrapper: %v", err)
@@ -68,7 +68,7 @@ func copyRemoteMysql(sshc *ssh.Client, binPath string, dbPrfl profile.MysqlBacku
 		return fmt.Errorf("unable to start ssh command: %v", err)
 	}
 
-	err = zip.WriteFile(outPipe, filepath.Join("_mysqldump", dbPrfl.DbName+".dump.sql"))
+	err = zip.WriteFile(outPipe, filepath.Join("_mysqldump", Db.Name+".dump.sql"))
 	if err != nil {
 		return fmt.Errorf("unable write mysqloutout to zip file, %v", err)
 	}

@@ -7,21 +7,21 @@ import (
 	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
-// check if all the notification fields are of type default zero
-func (m EmailNotify) isEmpty() bool {
-	if m.Host != "" ||
-		m.Port != "" ||
-		m.User != "" ||
-		m.Password != "" {
-		return false
+// unmarshal the yaml into small struct to get the version of the config file
+func getVersion(data []byte) (int, error) {
+	type vStruct struct {
+		Version int
 	}
-	if len(m.To) > 0 {
-		return false
+	d := &vStruct{}
+	err := yaml.Unmarshal(data, &d)
+	if err != nil {
+		return 0, err
 	}
-	return true
+	return d.Version, nil
 }
 
 // LoadProfile loads a profile from a yaml file
@@ -38,78 +38,129 @@ func LoadProfile(file string) (Profile, error) {
 		return Profile{}, err
 	}
 
-	p := profile{}
-	err = yaml.Unmarshal(data, &p)
+	version, err := getVersion(data)
+	if err != nil {
+		return Profile{}, fmt.Errorf("unable to get profile version: %w", err)
+	}
+
+	switch version {
+	case 1:
+		return loadProfileV1(data)
+	default:
+		return Profile{}, fmt.Errorf("unsupported profile version: %d", version)
+	}
+}
+
+type profileV1 struct {
+	Name string
+	Type ProfileType
+
+	Ssh  Ssh
+	Dirs []struct {
+		Path    string
+		Name    string
+		Exclude []string
+	}
+	Dbs []BackupDb
+
+	Destination Destination
+	Notify      EmailNotify
+}
+
+// load Profile V1 and return a valid profile
+func loadProfileV1(data []byte) (Profile, error) {
+	loadedProfile := profileV1{}
+	err := yaml.Unmarshal(data, &loadedProfile)
 	if err != nil {
 		return Profile{}, err
 	}
 
-	ret := Profile{
-		Name:        p.Name,
-		Mysql:       p.Mysql,
-		Destination: p.Destination,
-		Keep:        p.Keep,
-		Owner:       p.Owner,
-		Mode:        p.Mode,
+	if loadedProfile.Type == "" {
+		return Profile{}, errors.New("profile has no type")
 	}
 
-	if ret.Name == "" {
+	returnProfile := Profile{
+		Name:        loadedProfile.Name,
+		Type:        ProfileType(strings.ToLower(string(loadedProfile.Type))),
+		Ssh:         loadedProfile.Ssh,
+		Destination: loadedProfile.Destination,
+		Notify:      loadedProfile.Notify,
+	}
+
+	if !slices.Contains([]ProfileType{TypeSftpSync, TypeLocal, TypeRemote}, returnProfile.Type) {
+		return Profile{}, errors.New("profile has invalid type")
+	}
+
+	// ensure values are lower type
+	returnProfile.Ssh.Type = ConnType(strings.ToLower(string(loadedProfile.Ssh.Type)))
+
+	if returnProfile.Name == "" {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
-	if p.Remote.AuthType != "" {
-		t := p.Remote.AuthType
-		if t != RemotePassword && t != RemotePrivateKey && t != RemoteSshAgent {
-			return Profile{}, fmt.Errorf("remote type \"%s\" is not allowed", t)
+	// requires ssh config
+	if slices.Contains([]ProfileType{TypeSftpSync, TypeRemote}, returnProfile.Type) {
+		if !slices.Contains([]ConnType{ConnTypeSshKey, ConnTypePasswd, ConnTypeSshAgent}, returnProfile.Ssh.Type) || returnProfile.Ssh.Type == "" {
+			return Profile{}, errors.New("profile has invalid ssh connection type")
 		}
-		if p.Remote.Host == "" {
-			return Profile{}, fmt.Errorf("remote host cannot be empty")
+		if returnProfile.Ssh.Host == "" {
+			return Profile{}, errors.New("profile ssh host cannot be empty")
 		}
 
-		ret.Remote = p.Remote
-		ret.IsRemote = true
-
-		if ret.Remote.Port == "" {
-			ret.Remote.Port = getDefaultPort(t)
+		if returnProfile.Ssh.Port == 0 {
+			returnProfile.Ssh.Port = 22
 		}
 	}
 
-	// check notification config
-	if !p.Notify.isEmpty() {
-		ret.Notify = true
-		ret.NotifyCfg = p.Notify
+	// requires bbackup targets
+	if slices.Contains([]ProfileType{TypeLocal, TypeRemote}, returnProfile.Type) {
+		if len(loadedProfile.Dbs) == 0 && len(loadedProfile.Dirs) == 0 {
+			return Profile{}, errors.New("nothing to backup")
+		}
 	}
 
 	// handle directories
-	for _, bd := range p.Dirs {
-		d := BackupDir{
-			Root: bd.Root,
+	for _, dir := range loadedProfile.Dirs {
+		d := BackupPath{
+			Path: dir.Path,
+			Name: dir.Name,
 		}
-		for _, excl := range bd.Exclude {
+		for _, excl := range dir.Exclude {
 			g, gerr := glob.Compile(excl)
 			if gerr != nil {
-				return Profile{}, gerr
+				return Profile{}, fmt.Errorf("unable to compile exclude pattern: %w", gerr)
 			}
 			d.Exclude = append(d.Exclude, g)
 		}
-		ret.Dirs = append(ret.Dirs, d)
+		if d.Path == "" {
+			return Profile{}, errors.New("profile path cannot be empty")
+		}
 
+		// if type is sftpsync we also require a profile name
+		if returnProfile.Type == TypeSftpSync && d.Name == "" {
+			return Profile{}, errors.New("profile name for sync path cannot be empty")
+		}
+
+		returnProfile.Dirs = append(returnProfile.Dirs, d)
 	}
 
-	return ret, nil
-}
-
-func getDefaultPort(in AuthType) string {
-	switch in {
-	case RemoteSshAgent, RemotePassword, RemotePrivateKey:
-		return "22"
-	default:
-		return ""
+	// Handle DBs
+	for _, db := range loadedProfile.Dbs {
+		d := BackupDb{
+			Name:     db.Name,
+			Type:     DbType(strings.ToLower(string(db.Type))),
+			User:     db.User,
+			Password: db.Password,
+		}
+		returnProfile.Dbs = append(returnProfile.Dbs, d)
 	}
+	return returnProfile, nil
 }
 
 const profileExt = ".backup.yaml"
 
+// LoadProfiles will try to load all profiles in a directory, no error is returned if all profiles are ok
+// if any profile is incomplete, the slice of profiles still contain the valid profiles
 func LoadProfiles(dir string) ([]Profile, error) {
 
 	// check if dir exists
@@ -135,24 +186,20 @@ func LoadProfiles(dir string) ([]Profile, error) {
 	}
 
 	var profiles []Profile
-	var errs []string
-
+	var errs error
 	for _, file := range files {
 		p, perr := LoadProfile(file)
 		if perr != nil {
-			errs = append(errs, file)
+			errs = errors.Join(errs, fmt.Errorf("failed to load profile %s: %w", file, perr))
 			continue
 		}
 		profiles = append(profiles, p)
 	}
 
-	if len(errs) > 0 {
-		err = errors.New("errors loading profile from files: " + strings.Join(errs, ","))
-	}
-
-	return profiles, err
+	return profiles, errs
 }
 
+// todo replace with embedd
 func Boilerplate() string {
 	s := `---
 # make sure your filename end with .backup.yaml to be picked up.

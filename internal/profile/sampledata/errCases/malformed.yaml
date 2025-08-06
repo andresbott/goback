@@ -1,0 +1,8 @@
+---
+version: 1
+name: malformed
+type: local
+dirs:
+  - path: /somepath
+    exclude
+    - "*.log"

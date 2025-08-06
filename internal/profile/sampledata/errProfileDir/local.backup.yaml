@@ -1,0 +1,33 @@
+---
+version: 1
+name: "localBackup"
+type: "Local" # explicitly making it the first letter upper case to test proper handling
+
+dirs:
+  - path: /bla
+    exclude:
+      - "*.log"
+  - path: /ble
+    exclude:
+      - "*.logs"
+dbs:
+  - name: dbname
+    type: Mysql # explicitly making it the first letter upper case to test proper handling
+    user: user
+    password: pw
+
+destination:
+  path:   "/backups"
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

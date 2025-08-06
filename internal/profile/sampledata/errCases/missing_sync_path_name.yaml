@@ -1,0 +1,31 @@
+---
+version: 1
+type: "sftpsync"
+name: "test"
+
+dirs:
+  - path: /bla
+
+ssh:
+  type: sshkey
+  host: bla.ble.com
+  port: 22
+  privateKey: /path/To/key
+  passphrase: pass
+
+
+destination:
+  path:   "/backup"
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

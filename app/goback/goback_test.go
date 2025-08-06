@@ -31,7 +31,7 @@ func TestZipName(t *testing.T) {
 	}
 }
 
-func TestBackupProfile_local(t *testing.T) {
+func TestBackupLocal(t *testing.T) {
 
 	tcs := []struct {
 		name          string
@@ -40,13 +40,12 @@ func TestBackupProfile_local(t *testing.T) {
 		expectedErr   string
 	}{
 		{
-			name: "expect profile with single directory",
+			name: "profile with single directory",
 			profile: profile.Profile{
 				Name: "bla",
-				Dirs: []profile.BackupDir{
+				Dirs: []profile.BackupPath{
 					{
-						Root: "sampledata/files/dir1",
-
+						Path:    "sampledata/files/dir1",
 						Exclude: nil,
 					},
 				},
@@ -59,16 +58,16 @@ func TestBackupProfile_local(t *testing.T) {
 		},
 
 		{
-			name: "expect profile with multiple directory",
+			name: "profile with multiple directory",
 			profile: profile.Profile{
 				Name: "bla",
-				Dirs: []profile.BackupDir{
+				Dirs: []profile.BackupPath{
 					{
-						Root:    "sampledata/files/dir1",
+						Path:    "sampledata/files/dir1",
 						Exclude: nil,
 					},
 					{
-						Root:    "sampledata/files/dir2",
+						Path:    "sampledata/files/dir2",
 						Exclude: nil,
 					},
 				},
@@ -83,20 +82,21 @@ func TestBackupProfile_local(t *testing.T) {
 		},
 
 		{
-			name: "expect profile with files and database",
+			name: "profile with files and database",
 			profile: profile.Profile{
 				Name: "bli",
-				Dirs: []profile.BackupDir{
+				Dirs: []profile.BackupPath{
 					{
-						Root:    "sampledata/files/dir1",
+						Path:    "sampledata/files/dir1",
 						Exclude: nil,
 					},
 				},
-				Mysql: []profile.MysqlBackup{
+				Dbs: []profile.BackupDb{
 					{
-						DbName: "mydb",
-						User:   "user",
-						Pw:     "pw",
+						Type:     profile.DbMysql,
+						Name:     "mydb",
+						User:     "user",
+						Password: "pw",
 					},
 				},
 			},
@@ -109,20 +109,21 @@ func TestBackupProfile_local(t *testing.T) {
 		},
 
 		{
-			name: "expect generated zip file to be removed",
+			name: "expect err with generated zip file to be removed",
 			profile: profile.Profile{
 				Name: "bli",
-				Dirs: []profile.BackupDir{
+				Dirs: []profile.BackupPath{
 					{
-						Root:    "sampledata/files/dir1",
+						Path:    "sampledata/files/dir1",
 						Exclude: nil,
 					},
 				},
-				Mysql: []profile.MysqlBackup{
+				Dbs: []profile.BackupDb{
 					{
-						DbName: "mydb",
-						User:   "fail", // the crafted mysqldump binary fails if the username is fail
-						Pw:     "pw",
+						Type:     profile.DbMysql,
+						Name:     "mydb",
+						User:     "fail", // the crafted mysqldump binary fails if the username is fail
+						Password: "pw",
 					},
 				},
 			},
@@ -133,9 +134,9 @@ func TestBackupProfile_local(t *testing.T) {
 			name: "expect symbolic link to be preserved",
 			profile: profile.Profile{
 				Name: "bli",
-				Dirs: []profile.BackupDir{
+				Dirs: []profile.BackupPath{
 					{
-						Root: "sampledata/files/",
+						Path: "sampledata/files/",
 						Exclude: []glob.Glob{
 							getGlob("sampledata/files/dir1/*"),
 						},
@@ -163,10 +164,10 @@ func TestBackupProfile_local(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			tmpDir := setup(t)
-			zipFile := filepath.Join(tmpDir, "out", "test.zip")
-			tc.profile.Destination = filepath.Join(tmpDir, "out")
+			zipFile := filepath.Join(tmpDir, "test.zip")
+			tc.profile.Destination.Path = tmpDir
 
-			err := BackupProfile(tc.profile, logger.SilentLogger(), "test.zip")
+			err := backupLocal(tc.profile, zipFile, logger.SilentLogger())
 
 			if tc.expectedErr == "" {
 				if err != nil {
@@ -256,26 +257,25 @@ func setupContainer(ctx context.Context) (*sshContainer, error) {
 	return sshCont, nil
 }
 
-func TestBackupProfile_remote(t *testing.T) {
+func TestBackupRemote(t *testing.T) {
 	skipInCI(t) // skip test if running in CI
 
 	tcs := []struct {
 		name          string
 		profile       profile.Profile
-		dirs          []profile.BackupDir
-		mysql         []profile.MysqlBackup
+		dirs          []profile.BackupPath
+		mysql         []profile.BackupDb
 		expectedFiles []string
 		expectedErr   string
 	}{
 		{
 			name: "expect profile with single directory",
 			profile: profile.Profile{
-				Name:     "bli",
-				IsRemote: true,
-				Remote:   profile.RemoteCfg{},
-				Dirs: []profile.BackupDir{
+				Name: "bli",
+				Ssh:  profile.Ssh{},
+				Dirs: []profile.BackupPath{
 					{
-						Root:    "/data/dir1",
+						Path:    "/data/dir1",
 						Exclude: nil,
 					},
 				},
@@ -290,18 +290,18 @@ func TestBackupProfile_remote(t *testing.T) {
 		{
 			name: "expect profile with multiple directory and excluded glob",
 			profile: profile.Profile{
-				Name:     "bli",
-				IsRemote: true,
-				Remote:   profile.RemoteCfg{},
-				Dirs: []profile.BackupDir{
+				Name: "bli",
+
+				Ssh: profile.Ssh{},
+				Dirs: []profile.BackupPath{
 					{
-						Root: "/data/dir1",
+						Path: "/data/dir1",
 						Exclude: []glob.Glob{
 							getGlob("*.log"),
 						},
 					},
 					{
-						Root:    "/data/dir2",
+						Path:    "/data/dir2",
 						Exclude: nil,
 					},
 				},
@@ -317,14 +317,15 @@ func TestBackupProfile_remote(t *testing.T) {
 		{
 			name: "expect database to be backedup",
 			profile: profile.Profile{
-				Name:     "bli",
-				IsRemote: true,
-				Remote:   profile.RemoteCfg{},
-				Mysql: []profile.MysqlBackup{
+				Name: "bli",
+
+				Ssh: profile.Ssh{},
+				Dbs: []profile.BackupDb{
 					{
-						DbName: "mydb",
-						User:   "user",
-						Pw:     "pw",
+						Type:     profile.DbMysql,
+						Name:     "mydb",
+						User:     "user",
+						Password: "pw",
 					},
 				},
 			},
@@ -346,19 +347,20 @@ func TestBackupProfile_remote(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			zipFile := filepath.Join(tmpDir, "out", "test.zip")
+			zipFile := filepath.Join(tmpDir, "test.zip")
 
-			tc.profile.Destination = filepath.Join(tmpDir, "out")
-			tc.profile.Remote = profile.RemoteCfg{
+			tc.profile.Destination.Path = tmpDir
+
+			tc.profile.Ssh = profile.Ssh{
+				Type:     profile.ConnTypePasswd,
 				Host:     sshServer.host,
-				Port:     strconv.Itoa(sshServer.port),
-				AuthType: profile.RemotePassword,
+				Port:     sshServer.port,
 				User:     "pwuser",
 				Password: "1234",
 			}
 			ignoreHostKey = true // ignore for tests only
 
-			err = BackupProfile(tc.profile, logger.SilentLogger(), "test.zip")
+			err = backupRemote(tc.profile, zipFile, logger.SilentLogger())
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

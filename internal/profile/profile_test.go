@@ -3,6 +3,7 @@ package profile
 import (
 	"github.com/gobwas/glob"
 	"github.com/google/go-cmp/cmp"
+	"strings"
 	"testing"
 )
 
@@ -19,102 +20,127 @@ func TestLoadProfile(t *testing.T) {
 	}{
 		{
 			name: "local backup",
-			file: "sampledata/local.backup.yaml",
+			file: "sampledata/correctProfileDir/local.backup.yaml",
 			want: Profile{
-				Name: "test",
-				Dirs: []BackupDir{
+				Name: "localBackup",
+				Type: TypeLocal,
+				Dirs: []BackupPath{
 					{
-						Root: "/bla",
+						Path: "/bla",
 						Exclude: []glob.Glob{
 							getGlob("*.log"),
 						},
 					},
 					{
-						Root: "/ble",
+						Path: "/ble",
 						Exclude: []glob.Glob{
 							getGlob("*.logs"),
 						},
 					},
 				},
-				Mysql: []MysqlBackup{
+				Dbs: []BackupDb{
 					{
-						DbName: "dbname",
-						User:   "user",
-						Pw:     "pw",
+						Name:     "dbname",
+						User:     "user",
+						Password: "pw",
+						Type:     DbMysql,
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
+					Host:     "smtp.mail.com",
+					Port:     "587",
+					User:     "mail@mails.com",
+					Password: "1234",
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
+				},
 			},
 		},
 
 		{
 			name: "profile with remote configuration",
-			file: "sampledata/remote.backup.yaml",
+			file: "sampledata/correctProfileDir/remote.backup.yaml",
 			want: Profile{
-				Name:     "remote",
-				IsRemote: true,
-				Remote: RemoteCfg{
-					AuthType:   "sshPassword",
+				Name: "remote",
+				Type: TypeRemote,
+				Ssh: Ssh{
+					Type:       ConnTypePasswd,
 					Host:       "bla.ble.com",
-					Port:       "22",
+					Port:       2222,
 					User:       "user",
 					Password:   "bla",
 					PrivateKey: "privKey",
-					PassPhrase: "pass",
+					Passphrase: "pass",
 				},
-				Dirs: []BackupDir{
+				Dirs: []BackupPath{
 					{
-						Root: "relative/path",
+						Path: "relative/path",
 						Exclude: []glob.Glob{
 							getGlob("*.log"),
 						},
 					},
-				},
-				Mysql: []MysqlBackup{
 					{
-						DbName: "dbname",
-						User:   "user",
-						Pw:     "pw",
+						Path: "/backup/service2",
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
-			},
-		},
-
-		{
-			name: "profile with email notification",
-			file: "sampledata/email.backup.yaml",
-			want: Profile{
-				Name: "email",
-
-				Dirs: []BackupDir{
+				Dbs: []BackupDb{
 					{
-						Root: "relative",
-						Exclude: []glob.Glob{
-							getGlob("*.log"),
-						},
+						Name:     "dbname",
+						User:     "user",
+						Password: "pw",
+						Type:     "mysql",
 					},
 				},
-				Destination: "/backups",
-				Keep:        3,
-				Owner:       "ble",
-				Mode:        "0700",
-				Notify:      true,
-				NotifyCfg: EmailNotify{
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
 					Host:     "smtp.mail.com",
 					Port:     "587",
 					User:     "mail@mails.com",
 					Password: "1234",
-					To: []string{
-						"mail1@mail.com",
-						"mail2@mail.com",
-					},
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
+				},
+			},
+		},
+
+		{
+			name: "profile with sftp sync",
+			file: "sampledata/correctProfileDir/sftpSync.backup.yaml",
+			want: Profile{
+				Name: "sftpSync",
+				Type: TypeSftpSync,
+				Ssh: Ssh{
+					Type:       ConnTypeSshKey,
+					Host:       "bla.ble.com",
+					Port:       22,
+					PrivateKey: "/path/To/key",
+					Passphrase: "pass",
+				},
+				Dirs: []BackupPath{
+					{Path: "/backup/service1", Name: "service1"},
+					{Path: "/backup/service2", Name: "service2"},
+				},
+				Destination: Destination{
+					Path:  "/backups",
+					Keep:  3,
+					Owner: "ble",
+					Mode:  "0600",
+				},
+				Notify: EmailNotify{
+					Host:     "smtp.mail.com",
+					Port:     "587",
+					User:     "mail@mails.com",
+					Password: "1234",
+					To:       []string{"mail1@mail.com", "mail2@mail.com"},
 				},
 			},
 		},
@@ -134,55 +160,98 @@ func TestLoadProfile(t *testing.T) {
 		})
 	}
 
-	//
-	//t.Run("load nonexistent file", func(t *testing.T) {
-	//	_, err := LoadProfileFile("sampledata/nonexistent.yaml")
-	//	if err == nil {
-	//		t.Fatal("expecting an error but none was returned")
-	//	}
-	//
-	//	expectedErr := "open sampledata/nonexistent.yaml: no such file or directory"
-	//	if err.Error() != expectedErr {
-	//		t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
-	//	}
-	//})
-	//
-	//t.Run("load from wrong file type", func(t *testing.T) {
-	//	_, err := LoadProfileFile("sampledata/json.json")
-	//	if err == nil {
-	//		t.Fatal("expecting an error but none was returned")
-	//	}
-	//
-	//	expectedErr := "profile path is not a .yaml file"
-	//	if err.Error() != expectedErr {
-	//		t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
-	//	}
-	//})
+	t.Run("load nonexistent file", func(t *testing.T) {
+		_, err := LoadProfile("sampledata/nonexistent.yaml")
+		if err == nil {
+			t.Fatal("expecting an error but none was returned")
+		}
+
+		expectedErr := "open sampledata/nonexistent.yaml: no such file or directory"
+		if err.Error() != expectedErr {
+			t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
+		}
+	})
+
+	t.Run("load from wrong file type", func(t *testing.T) {
+		_, err := LoadProfile("sampledata/json.json")
+		if err == nil {
+			t.Fatal("expecting an error but none was returned")
+		}
+
+		expectedErr := "profile path is not a .yaml file"
+		if err.Error() != expectedErr {
+			t.Errorf("got unexpected error, \ngot: \n\"%s\" \nwant: \n\"%s\"", err.Error(), expectedErr)
+		}
+	})
 
 }
 
 func TestLoadProfileErrors(t *testing.T) {
 
 	tcs := []struct {
-		name string
-		file string
-		want string
+		name      string
+		file      string
+		wantError string
 	}{
 		{
-			name: "Load from wrong extension",
-			file: "sampledata/json.json",
-			want: "profile path is not a .yaml file",
-		},
-
-		{
-			name: "File does not exitss",
-			file: "sampledata/inexistent.yaml",
-			want: "open sampledata/inexistent.yaml: no such file or directory",
+			name:      "Load from wrong extension",
+			file:      "sampledata/json.json",
+			wantError: "profile path is not a .yaml file",
 		},
 		{
-			name: "Missing name in profile",
-			file: "sampledata/missingName.yaml",
-			want: "profile name cannot be empty",
+			name:      "Missing name in profile",
+			file:      "sampledata/errCases/missingName.yaml",
+			wantError: "profile name cannot be empty",
+		},
+		{
+			name:      "file not found",
+			file:      "sampledata/doesnotexist.yaml",
+			wantError: "no such file or directory",
+		},
+		{
+			name:      "malformed YAML",
+			file:      "sampledata/errCases/malformed.yaml",
+			wantError: "yaml",
+		},
+		{
+			name:      "missing required field (type)",
+			file:      "sampledata/errCases/missing_type.yaml",
+			wantError: "profile has no type",
+		},
+		{
+			name:      "invalid backup type",
+			file:      "sampledata/errCases/invalid_type.yaml",
+			wantError: "invalid type",
+		},
+		{
+			name:      "invalid glob pattern in exclude",
+			file:      "sampledata/errCases/invalid_glob.yaml",
+			wantError: "unable to compile exclude pattern",
+		},
+		{
+			name:      "invalid port (non-numeric)",
+			file:      "sampledata/errCases/invalid_port.yaml",
+			wantError: "cannot unmarshal",
+		},
+		{
+			name:      "missing version",
+			file:      "sampledata/errCases/missing_version.yaml",
+			wantError: "unsupported profile version: 0",
+		},
+		{
+			name:      "invalid remote connection type",
+			file:      "sampledata/errCases/invalid_remote.yaml",
+			wantError: "profile has invalid ssh connection type",
+		},
+		{
+			name:      "invalid backup content",
+			file:      "sampledata/errCases/invalid_backup_content.yaml",
+			wantError: "nothing to backup",
+		},
+		{
+			name:      "missing sync path name",
+			file:      "sampledata/errCases/missing_sync_path_name.yaml",
+			wantError: "profile name for sync path cannot be empty",
 		},
 	}
 
@@ -193,11 +262,8 @@ func TestLoadProfileErrors(t *testing.T) {
 				t.Fatal("expecting an error but returned nil")
 			}
 
-			got := err.Error()
-
-			want := tc.want
-			if diff := cmp.Diff(got, want); diff != "" {
-				t.Errorf("output mismatch (-got +want):\n%s", diff)
+			if !strings.Contains(err.Error(), tc.wantError) {
+				t.Errorf("expected error to contain %q, got: %v", tc.wantError, err)
 			}
 		})
 	}
@@ -206,7 +272,7 @@ func TestLoadProfileErrors(t *testing.T) {
 func TestLoadProfiles(t *testing.T) {
 
 	t.Run("load directory with profiles", func(t *testing.T) {
-		profiles, err := LoadProfiles("sampledata")
+		profiles, err := LoadProfiles("sampledata/correctProfileDir")
 		if err != nil {
 			t.Fatal("umexpected error: ", err)
 		}
@@ -216,9 +282,46 @@ func TestLoadProfiles(t *testing.T) {
 			got = append(got, p.Name)
 		}
 		want := []string{
-			"email",
-			"test",
+			"localBackup",
 			"remote",
+			"sftpSync",
+		}
+		if diff := cmp.Diff(got, want); diff != "" {
+			t.Errorf("output mismatch (-got +want):\n%s", diff)
+		}
+	})
+
+	t.Run("expect partial list with error profiles", func(t *testing.T) {
+		profiles, err := LoadProfiles("sampledata/errProfileDir")
+		wantErrs := []string{
+			"failed to load profile sampledata/errProfileDir/invalid.backup.yaml: profile has invalid ssh connection type",
+			"failed to load profile sampledata/errProfileDir/invalid_port.backup.yaml: yaml: unmarshal errors",
+		}
+
+		// Type assert Unwrap() []error
+		if unwrapped, ok := err.(interface{ Unwrap() []error }); ok {
+			for _, wantErr := range wantErrs {
+				foundErr := false
+				for _, gotErr := range unwrapped.Unwrap() {
+					if strings.Contains(gotErr.Error(), wantErr) {
+						foundErr = true
+						break
+					}
+				}
+				if !foundErr {
+					t.Errorf("expected error to contain %s", wantErr)
+				}
+			}
+		} else {
+			t.Fatalf("expect an unwrapped error type, got: %T", unwrapped)
+		}
+
+		got := []string{}
+		for _, p := range profiles {
+			got = append(got, p.Name)
+		}
+		want := []string{
+			"localBackup",
 		}
 		if diff := cmp.Diff(got, want); diff != "" {
 			t.Errorf("output mismatch (-got +want):\n%s", diff)
@@ -238,7 +341,7 @@ func TestLoadProfiles(t *testing.T) {
 	})
 
 	t.Run("expect error on file instead of dir", func(t *testing.T) {
-		_, err := LoadProfiles("sampledata/local.backup.yaml")
+		_, err := LoadProfiles("sampledata/correctProfileDir/local.backup.yaml")
 		if err == nil {
 			t.Fatal("expecting an error but none was returned")
 		}

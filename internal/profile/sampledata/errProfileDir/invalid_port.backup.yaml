@@ -1,0 +1,7 @@
+---
+version: 1
+name: badPort
+type: remote
+ssh:
+  host: example.com
+  port: abc

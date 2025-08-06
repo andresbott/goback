@@ -1,0 +1,33 @@
+---
+version: 1
+type: "local"
+
+dirs:
+  - root: /bla
+    followsymlinks: false
+    exclude:
+      - "*.log"
+  - root: /ble
+    followsymlinks: true
+    exclude:
+      - "*.logs"
+mysql:
+  - dbname: dbname
+    user: user
+    pw: pw
+
+destination:
+  path:   "/backup"
+  keep: 3
+  owner: "ble"
+  group: "ble"
+  mode : "0600"
+
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+  user: mail@mails.com
+  password: 1234

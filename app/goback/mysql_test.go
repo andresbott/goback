@@ -43,10 +43,10 @@ func TestCopyMysql_local(t *testing.T) {
 	zipFile, zh, destroy := setup(t)
 	defer destroy(t)
 
-	in := profile.MysqlBackup{
-		DbName: "testDbName",
-		User:   "user",
-		Pw:     "pass",
+	in := profile.BackupDb{
+		Name:     "testDbName",
+		User:     "user",
+		Password: "pass",
 	}
 
 	err := copyLocalMysql(mockBin, in, zh)
@@ -116,10 +116,10 @@ func TestCopyMysql_remote(t *testing.T) {
 	zipFile, zh, destroy := setup(t)
 	defer destroy(t)
 
-	in := profile.MysqlBackup{
-		DbName: "testDbName",
-		User:   "user",
-		Pw:     "pass",
+	in := profile.BackupDb{
+		Name:     "testDbName",
+		User:     "user",
+		Password: "pass",
 	}
 
 	cl, err := ssh.New(ssh.Cfg{
