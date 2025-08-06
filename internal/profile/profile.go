@@ -58,6 +58,7 @@ type profileV1 struct {
 	Ssh  Ssh
 	Dirs []struct {
 		Path    string
+		Name    string
 		Exclude []string
 	}
 	Dbs []BackupDb
@@ -99,8 +100,6 @@ func loadProfileV1(data []byte) (Profile, error) {
 
 	// requires ssh config
 	if slices.Contains([]ProfileType{TypeSftpSync, TypeRemote}, returnProfile.Type) {
-		// need to validate remote connection data
-
 		if !slices.Contains([]ConnType{ConnTypeSshKey, ConnTypePasswd, ConnTypeSshAgent}, returnProfile.Ssh.Type) || returnProfile.Ssh.Type == "" {
 			return Profile{}, errors.New("profile has invalid ssh connection type")
 		}
@@ -124,6 +123,7 @@ func loadProfileV1(data []byte) (Profile, error) {
 	for _, dir := range loadedProfile.Dirs {
 		d := BackupPath{
 			Path: dir.Path,
+			Name: dir.Name,
 		}
 		for _, excl := range dir.Exclude {
 			g, gerr := glob.Compile(excl)
@@ -135,6 +135,12 @@ func loadProfileV1(data []byte) (Profile, error) {
 		if d.Path == "" {
 			return Profile{}, errors.New("profile path cannot be empty")
 		}
+
+		// if type is sftpsync we also require a profile name
+		if returnProfile.Type == TypeSftpSync && d.Name == "" {
+			return Profile{}, errors.New("profile name for sync path cannot be empty")
+		}
+
 		returnProfile.Dirs = append(returnProfile.Dirs, d)
 	}
 

@@ -126,8 +126,8 @@ func TestLoadProfile(t *testing.T) {
 					Passphrase: "pass",
 				},
 				Dirs: []BackupPath{
-					{Path: "/backup/service1"},
-					{Path: "/backup/service2"},
+					{Path: "/backup/service1", Name: "service1"},
+					{Path: "/backup/service2", Name: "service2"},
 				},
 				Destination: Destination{
 					Path:  "/backups",
@@ -247,6 +247,11 @@ func TestLoadProfileErrors(t *testing.T) {
 			name:      "invalid backup content",
 			file:      "sampledata/errCases/invalid_backup_content.yaml",
 			wantError: "nothing to backup",
+		},
+		{
+			name:      "missing sync path name",
+			file:      "sampledata/errCases/missing_sync_path_name.yaml",
+			wantError: "profile name for sync path cannot be empty",
 		},
 	}
 

@@ -44,6 +44,7 @@ const (
 // BackupPath Holds the details about a path to include in the backup
 type BackupPath struct {
 	Path    string
+	Name    string // used only in sftp sync
 	Exclude []glob.Glob
 }
 

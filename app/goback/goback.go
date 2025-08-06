@@ -6,6 +6,7 @@ import (
 	"github.com/AndresBott/goback/lib/mysqldump"
 	"github.com/AndresBott/goback/lib/ssh"
 	"github.com/AndresBott/goback/lib/zip"
+	"github.com/pkg/sftp"
 	"log/slog"
 	"os"
 	"os/user"
@@ -156,11 +157,15 @@ func runLocalProfile(prfl profile.Profile, log *slog.Logger) error {
 		}
 	}
 
-	// delete old backup files
-	log.Info("Deleting older backups for profile", "name", prfl.Name)
-	err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
-	if err != nil {
-		return fmt.Errorf("error expurging old backup files: %w", err)
+	if prfl.Destination.Keep > 0 {
+		// delete old backup files
+		log.Info("Deleting older backups for profile", "name", prfl.Name)
+		err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
+		if err != nil {
+			return fmt.Errorf("error expurging old backup files: %w", err)
+		}
+	} else {
+		log.Info("skipping deleting older backups because", "name", prfl.Name)
 	}
 
 	return nil
@@ -244,12 +249,17 @@ func runRemoteProfile(prfl profile.Profile, log *slog.Logger) error {
 		}
 	}
 
-	// delete old backup files
-	log.Info("Deleting older backups for profile", "name", prfl.Name)
-	err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
-	if err != nil {
-		return fmt.Errorf("error expurging old backup files: %w", err)
+	if prfl.Destination.Keep > 0 {
+		// delete old backup files
+		log.Info("Deleting older backups for profile", "name", prfl.Name)
+		err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, prfl.Name, log)
+		if err != nil {
+			return fmt.Errorf("error expurging old backup files: %w", err)
+		}
+	} else {
+		log.Info("skipping deleting older backups because", "name", prfl.Name)
 	}
+
 	return nil
 }
 
@@ -321,61 +331,72 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 	return nil
 }
 
-func runSyncProfile(prfl profile.Profile, log *slog.Logger) error {
-	panic("not implemented")
+// runSyncProfile takes a remote (sftp) location from the profile and downloads remote backups files
+// to the local location
+// the sources of backup MUST be a sftpSync profile
+func runSyncProfile(prfl profile.Profile, log *slog.Logger) (err error) {
 
+	// check if destination dir exists, or create
+	err = prepareDestination(prfl.Destination.Path)
+	if err != nil {
+		return err
+	}
+
+	sshC, err := ssh.New(ssh.Cfg{
+		Host:          prfl.Ssh.Host,
+		Port:          prfl.Ssh.Port,
+		Auth:          ssh.GetAuthType(prfl.Ssh.Type),
+		User:          prfl.Ssh.User,
+		Password:      prfl.Ssh.Password,
+		PrivateKey:    prfl.Ssh.PrivateKey,
+		PassPhrase:    prfl.Ssh.Passphrase,
+		IgnoreHostKey: ignoreHostKey, // set to false and only exposed for testing
+	})
+
+	if err != nil {
+		return fmt.Errorf("error creating ssh client: %v", err)
+	}
+	err = sshC.Connect()
+	if err != nil {
+		return fmt.Errorf("error connecting ssh: %v", err)
+	}
+	defer func() {
+		_ = sshC.Disconnect()
+	}()
+
+	sftpc, err := sftp.NewClient(sshC.Connection())
+	if err != nil {
+		return fmt.Errorf("unable to create sftp client %v", err)
+	}
+	defer func() {
+		cErr := sftpc.Close()
+		if cErr != nil {
+			err = errors.Join(err, cErr)
+		}
+	}()
+
+	// copy remote dirs contents into local
+	for _, syncDir := range prfl.Dirs {
+		log.Info("synchronising remote directory", "dir", syncDir.Path)
+		err = syncRemoteBackups(sftpc, syncDir.Path, syncDir.Name, prfl.Destination.Path, log)
+		if err != nil {
+			return err
+		}
+
+		if prfl.Destination.Keep > 0 {
+			// delete old backup files
+			log.Info("Deleting older backups for profile", "name", syncDir.Name)
+			err = ExpurgeDir(prfl.Destination.Path, prfl.Destination.Keep, syncDir.Name, log)
+			if err != nil {
+				return fmt.Errorf("error expurging old backup files: %w", err)
+			}
+		} else {
+			log.Info("skipping deleting older backups because", "name", prfl.Name)
+		}
+	}
+
+	return nil
 }
-
-//// syncRemoteBackup takes a remote (sftp) location from the profile and downloads remote backups files
-//// to the local location
-//func (br *BackupRunner) syncRemoteBackup(prfl profile.Profile) error {
-//	// check if destination dir exists
-//	fInfo, err := os.Stat(prfl.Destination)
-//	if err != nil {
-//		return fmt.Errorf("destination not found: %v", err)
-//	}
-//	if !fInfo.IsDir() {
-//		return errors.New("the output path is not a directory")
-//	}
-//
-//	// handle file backup
-//	if !prfl.IsRemote {
-//		return errors.New("sync backups only works with remote location enabled")
-//	}
-//
-//	port, err := strconv.Atoi(prfl.Remote.Port)
-//	if err != nil {
-//		return fmt.Errorf("error parsisng port: %v", err)
-//	}
-//
-//	sshC, err := ssh.New(ssh.Cfg{
-//		Host:          prfl.Remote.Host,
-//		Port:          port,
-//		Auth:          ssh.GetAuthType(prfl.Remote.RemoteType),
-//		User:          prfl.Remote.User,
-//		Password:      prfl.Remote.Password,
-//		PrivateKey:    prfl.Remote.PrivateKey,
-//		PassPhrase:    prfl.Remote.PassPhrase,
-//		IgnoreHostKey: false, // no need to expose this for the moment
-//	})
-//
-//	if err != nil {
-//		return fmt.Errorf("error creating ssh client: %v", err)
-//	}
-//	err = sshC.Connect()
-//	if err != nil {
-//		return fmt.Errorf("error connecting ssh: %v", err)
-//	}
-//	defer func() {
-//		_ = sshC.Disconnect()
-//	}()
-//
-//	err = br.syncBackups(sshC, prfl.SyncBackup.RemotePath, prfl.Destination, prfl.Name)
-//	if err != nil {
-//		return fmt.Errorf("error running sftp backup profile: %v", err)
-//	}
-//	return nil
-//}
 
 // prepareDestination will create the destination if it does not exist
 //

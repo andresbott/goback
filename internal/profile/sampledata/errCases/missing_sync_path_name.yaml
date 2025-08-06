@@ -1,23 +1,21 @@
 ---
 version: 1
-name: "sftpSync"
 type: "sftpsync"
+name: "test"
+
+dirs:
+  - path: /bla
 
 ssh:
   type: sshkey
   host: bla.ble.com
-  #  port: 22 # explicitly commented out to ensure default is populated
+  port: 22
   privateKey: /path/To/key
   passphrase: pass
 
-dirs:
-  - path: "/backup/service1"
-    name: "service1"
-  - path: "/backup/service2"
-    name: "service2"
 
 destination:
-  path:   "/backups"
+  path:   "/backup"
   keep: 3
   owner: "ble"
   group: "ble"
