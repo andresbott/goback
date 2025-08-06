@@ -1,6 +1,7 @@
 package profile
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"github.com/gobwas/glob"
@@ -199,71 +200,9 @@ func LoadProfiles(dir string) ([]Profile, error) {
 	return profiles, errs
 }
 
-// todo replace with embedd
-func Boilerplate() string {
-	s := `---
-# make sure your filename end with .backup.yaml to be picked up.
+//go:embed configv1.yaml
+var configV1Yaml string
 
-# profile name used to identify different backup profiles
-name: myService
-
-# use a remote connection to run goback
-remote:
-	# the type of connection, currently valid: sshPassword | sshKey | sshAgent 
-	# if the type is set to sshAgent, get the ssh key from a running ssh agent
-	type: sshPassword
-	#host/port of the server
-	host: bla.ble.com
-	port: 22
-	# the username used to login to the server
-	user: user
-	# password used when type is sshPassword 
-	password: bla
-	# key file used when type is sshKey, a passphrase can be provided as well
-	privateKey: privKey
-	passPhrase: pass
-
-# list of different filesystem directories to backup
-dirs:
-    # the rood path to use as backup
-  - root: /home/user/
-    # list of glop patterns of files to be excluded from this group
-    exclude:
-      - "*.log"
-
-# list of mysql databases to be added to the profile
-mysql:
-    # database name is required, user and password will be used if provided
-    # otherwise the tool will try to get them from common system locations, e.g. /etc/my.cnf
-  - dbname: dbname
-    user: user
-    pw: pw
-
-# this is the destination where the backup file will be written
-# only local filesystem is allowed
-destination: /backups
-
-# how many older backups to keep for this profile
-# this also affects the output of a synced directory
-keep: 3
-
-#change owner/mode of the generated file
-owner : "ble"
-mode : "0700"
-
-# notify per email if a profile was successful or not
-notify:
-	# send email to these addresses 
-    to:
-      - mail1@mail.com
-      - mail2@mail.com
-
-	# email server details
-    host: smtp.mail.com
-    port: 587
-    user: mail@mails.com
-    password: 1234
-
-`
-	return s
+func ConfigV1() string {
+	return configV1Yaml
 }
