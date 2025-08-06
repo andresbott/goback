@@ -1,0 +1,75 @@
+---
+version: 1
+name: "" # profile name
+# type of action: local, remote, sftpsync
+# local: will backup local dirs and DBs into a file
+# remote: uses an ssh shell to copy remote dirs and DBs into a local file
+# sftpsync: allows to sync remote backup files, stored in a path into a local path
+type: "local"
+
+# dirs is a list of define the directories the profile acts on
+dirs:
+  # the path defines the source to backup / sync
+  - path: "/some/path"
+    # exxlude defines a list of glob patters to exclude from the backup
+    exclude:
+      - "*.log"
+    # name is ONLY used for sftpsync and is the name of the profile
+    # to sync from the remote to the local path
+    name:
+# dbs: defines a list of Databases to include in the backup
+dbs:
+  # name defined the database name
+  - name: dbname
+    # the type defines the DB implementation: currently only mysql/mariadb are supported
+    # NOTE this requrires to have mysqdump installed on the machine where the backup runs
+    type: Mysql # explicitly making it the first letter upper case to test proper handling
+    # user | password (optional) if set, it will use this credentials to run mysqldump
+    # if they are not set, goback will try to read .my.cnf,  e.g. /etc/my.cnf
+    # or use the default socket auth.
+    user: "myUser"
+    password: "myPW"
+
+# in case of remote or sftpsync the ssh config is required.
+ssh:
+  # type defines the type of ssh authentication possible values are:
+  # password: use username + password
+  # sshkey: use a private kye
+  # useragent: assumes a running ssh user-agent with the key loaded.
+  type: password
+  # host where to connect to
+  host: bla.ble.com
+  # ssh port: default is 22
+  port: 22
+  # username | password in case of password auth
+  user: user
+  password: bla
+  # private key in case of sshkey auth
+  privateKey: privKey
+  # passphrase used in the private key
+  passphrase: pass
+
+
+# this is the destination where the backup file will be written
+# only local filesystem is allowed
+destination:
+  path:   "/backups"
+  # how many older backups to keep for this profile
+  # this also affects the output of a synced directory
+  # it can be set to -1 to disable
+  keep: 3
+  #change owner/mode of the generated file
+  owner: "ble"
+  mode : "0600"
+
+# notify per email if a profile was successful or not, every profile can setup an independent notification;
+# this is usefull if you want to notify other users that a backup completed.
+notify:
+  host: smtp.mail.com
+  port: 587
+  to:
+    - mail1@mail.com
+    - mail2@mail.com
+
+  user: mail@mails.com
+  password: 1234

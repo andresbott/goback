@@ -161,7 +161,7 @@ func generateCmd() *cobra.Command {
 		Long:  `generate a profile file`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// we just print the profile boilerplate to stdout
-			fmt.Println(profile.Boilerplate())
+			fmt.Println(profile.ConfigV1())
 		},
 	}
 
