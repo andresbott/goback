@@ -40,7 +40,7 @@ func TestBackupLocal(t *testing.T) {
 		expectedErr   string
 	}{
 		{
-			name: "expect profile with single directory",
+			name: "profile with single directory",
 			profile: profile.Profile{
 				Name: "bla",
 				Dirs: []profile.BackupPath{
@@ -58,7 +58,7 @@ func TestBackupLocal(t *testing.T) {
 		},
 
 		{
-			name: "expect profile with multiple directory",
+			name: "profile with multiple directory",
 			profile: profile.Profile{
 				Name: "bla",
 				Dirs: []profile.BackupPath{
@@ -82,7 +82,7 @@ func TestBackupLocal(t *testing.T) {
 		},
 
 		{
-			name: "expect profile with files and database",
+			name: "profile with files and database",
 			profile: profile.Profile{
 				Name: "bli",
 				Dirs: []profile.BackupPath{
@@ -93,6 +93,7 @@ func TestBackupLocal(t *testing.T) {
 				},
 				Dbs: []profile.BackupDb{
 					{
+						Type:     profile.DbMysql,
 						Name:     "mydb",
 						User:     "user",
 						Password: "pw",
@@ -108,7 +109,7 @@ func TestBackupLocal(t *testing.T) {
 		},
 
 		{
-			name: "expect generated zip file to be removed",
+			name: "expect err with generated zip file to be removed",
 			profile: profile.Profile{
 				Name: "bli",
 				Dirs: []profile.BackupPath{
@@ -119,6 +120,7 @@ func TestBackupLocal(t *testing.T) {
 				},
 				Dbs: []profile.BackupDb{
 					{
+						Type:     profile.DbMysql,
 						Name:     "mydb",
 						User:     "fail", // the crafted mysqldump binary fails if the username is fail
 						Password: "pw",
@@ -162,10 +164,10 @@ func TestBackupLocal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 
 			tmpDir := setup(t)
-			zipFile := filepath.Join(tmpDir, "out", "test.zip")
-			tc.profile.Destination.Path = filepath.Join(tmpDir, "out")
+			zipFile := filepath.Join(tmpDir, "test.zip")
+			tc.profile.Destination.Path = tmpDir
 
-			err := backupLocal(tc.profile, "test.zip", logger.SilentLogger())
+			err := backupLocal(tc.profile, zipFile, logger.SilentLogger())
 
 			if tc.expectedErr == "" {
 				if err != nil {
@@ -320,6 +322,7 @@ func TestBackupRemote(t *testing.T) {
 				Ssh: profile.Ssh{},
 				Dbs: []profile.BackupDb{
 					{
+						Type:     profile.DbMysql,
 						Name:     "mydb",
 						User:     "user",
 						Password: "pw",
@@ -344,9 +347,10 @@ func TestBackupRemote(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
-			zipFile := filepath.Join(tmpDir, "out", "test.zip")
+			zipFile := filepath.Join(tmpDir, "test.zip")
 
-			tc.profile.Destination.Path = filepath.Join(tmpDir, "out")
+			tc.profile.Destination.Path = tmpDir
+
 			tc.profile.Ssh = profile.Ssh{
 				Type:     profile.ConnTypePasswd,
 				Host:     sshServer.host,
@@ -356,7 +360,7 @@ func TestBackupRemote(t *testing.T) {
 			}
 			ignoreHostKey = true // ignore for tests only
 
-			err = backupRemote(tc.profile, "test.zip", logger.SilentLogger())
+			err = backupRemote(tc.profile, zipFile, logger.SilentLogger())
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

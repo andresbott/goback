@@ -132,7 +132,7 @@ func runLocalProfile(prfl profile.Profile, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	destZip := filepath.Join(prfl.Destination.Path)
+	destZip := filepath.Join(prfl.Destination.Path, getZipName(prfl.Name))
 
 	log.Info("backing up local profile to file", "destination", destZip)
 	err = backupLocal(prfl, destZip, log)
@@ -187,9 +187,7 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 	if len(prfl.Dbs) > 0 {
 		for _, db := range prfl.Dbs {
 			switch db.Type {
-			case profile.DbMysql:
-			case profile.DbMaria:
-
+			case profile.DbMysql, profile.DbMaria:
 				// check for mysqldump installed
 				binPath, err := mysqldump.GetBinPath()
 				if err != nil {
@@ -201,6 +199,7 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 				if err != nil {
 					return err
 				}
+
 			default:
 				return fmt.Errorf("unknown db type: %s", db.Type)
 			}
@@ -299,9 +298,7 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 	if len(prfl.Dbs) > 0 {
 		for _, db := range prfl.Dbs {
 			switch db.Type {
-			case profile.DbMysql:
-			case profile.DbMaria:
-
+			case profile.DbMysql, profile.DbMaria:
 				binPath, err := sshC.Which("mysqldump")
 				if err != nil {
 					return fmt.Errorf("error checking mysql binary: %v", err)
@@ -326,7 +323,7 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 
 func runSyncProfile(prfl profile.Profile, log *slog.Logger) error {
 	panic("not implemented")
-	return nil
+
 }
 
 //// syncRemoteBackup takes a remote (sftp) location from the profile and downloads remote backups files
