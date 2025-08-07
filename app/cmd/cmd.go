@@ -49,6 +49,7 @@ func newRootCommand() *cobra.Command {
 	return cmd
 }
 
+//nolint:dupl // two similar cmds
 func backupCmd() *cobra.Command {
 
 	loglevel := "info"
@@ -78,7 +79,6 @@ func backupCmd() *cobra.Command {
 				return backupFromDir(absPath, log)
 			} else {
 				return backupFromFile(absPath, log)
-
 			}
 		},
 	}
@@ -132,15 +132,35 @@ func backupFromDir(absPath string, logger *slog.Logger) error {
 	return nil
 }
 
+//nolint:dupl // two similar cmds
 func validateCmd() *cobra.Command {
 	loglevel := "info"
 	cmd := cobra.Command{
 		Use:   "validate",
 		Short: "validate a profile or a directory ",
 		Long:  `validate a profile or a directory `,
-		Run: func(cmd *cobra.Command, args []string) {
-			// TODO implement
-			panic("not implemented")
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			file := args[0]
+			log, err := logger.GetDefault(logger.GetLogLevel(loglevel))
+			if err != nil {
+				return err
+			}
+
+			absPath, err := filepath.Abs(file)
+			if err != nil {
+				return err
+			}
+
+			fstat, err := os.Stat(absPath)
+			if err != nil {
+				return err
+			}
+			if fstat.IsDir() {
+				return validateDir(absPath, log)
+			} else {
+				return validateSingle(absPath, log)
+			}
 		},
 	}
 
@@ -152,6 +172,36 @@ func validateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&loglevel, "loglevel", "l", loglevel, "Set the log level")
 
 	return &cmd
+}
+
+func validateDir(absPath string, log *slog.Logger) error {
+	_, err := profile.LoadProfiles(absPath)
+	if err != nil {
+		log.Error("Got errors when validating profiles in directory ", "path", absPath)
+		if unwrapped, ok := err.(interface{ Unwrap() []error }); ok {
+			for _, gotErr := range unwrapped.Unwrap() {
+				log.Error(gotErr.Error())
+			}
+		} else {
+			log.Error("Got error when validating profile", "path", absPath)
+			log.Error(err.Error())
+			return fmt.Errorf("profiles contains errors")
+		}
+		return fmt.Errorf("profiles contains errors")
+	}
+	log.Info("all profiles are valid")
+	return nil
+}
+
+func validateSingle(absPath string, log *slog.Logger) error {
+	_, err := profile.LoadProfile(absPath)
+	if err != nil {
+		log.Error("Got error when validating profile", "path", absPath)
+		log.Error(err.Error())
+		return fmt.Errorf("profiles contains errors")
+	}
+	log.Info("profile is valid")
+	return nil
 }
 
 func generateCmd() *cobra.Command {
