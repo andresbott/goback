@@ -79,6 +79,10 @@ dirs:
   - path: "/backup/service2"
 ```
 
+> NOTE: if connecting to a sftp jail (sftpsync) the path needs to account for the jail root,
+> E.g. if your jail is in /var/backups/content /that makes your new root /backups hence you need to put in path
+> /content
+
 **dbs:**
 
 * _dbs_: list of databases to backup.
@@ -105,7 +109,7 @@ dbs:
 **ssh:**
 
 * _ssh_: details about ssh/sftp connection
-  * _type_ [ sshPassword | sshKey | sshAgent ]: how to login to the remote server.
+  * _type_ [ password | sshkey | sshagent ]: how to login to the remote server.
   * _host_: ssh host
   * _port_: ssh port
   * _user_: ssh user
@@ -145,10 +149,11 @@ destination:
 
 * _notify_: optional setting to send an email per profile
   * _to_: list of email addresses to notify
-  * host: email server host
-  * port: email sever port
-  * user: email server user to login
-  * password: password for that user on the email server
+  * _host_: email server host
+  * _port_: email sever port
+  * _user_: email server user to login
+  * _password_: password for that user on the email server
+  * _from_: email From address
 
 example:
 ```

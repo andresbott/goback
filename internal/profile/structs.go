@@ -1,6 +1,8 @@
 package profile
 
-import "github.com/gobwas/glob"
+import (
+	"github.com/gobwas/glob"
+)
 
 type Profile struct {
 	Name string
@@ -74,18 +76,20 @@ type EmailNotify struct {
 	Port     string
 	User     string
 	Password string
+	From     string
 	To       []string
 }
 
 // HasValues check if all the notification fields are of type default zero
 func (m EmailNotify) HasValues() bool {
-	if m.Host != "" ||
-		m.Port != "" ||
-		m.User != "" ||
-		m.Password != "" {
+	if m.Host == "" ||
+		m.Port == "" ||
+		m.User == "" ||
+		m.From == "" ||
+		m.Password == "" {
 		return false
 	}
-	if len(m.To) > 0 {
+	if len(m.To) == 0 {
 		return false
 	}
 	return true
