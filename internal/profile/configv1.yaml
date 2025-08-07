@@ -63,13 +63,13 @@ destination:
   mode : "0600"
 
 # notify per email if a profile was successful or not, every profile can setup an independent notification;
-# this is usefull if you want to notify other users that a backup completed.
+# this is useful if you want to notify other users that a backup completed.
 notify:
   host: smtp.mail.com
   port: 587
+  user: mail@mail.com
+  password: 1234
+  from: noreply@mail.com
   to:
     - mail1@mail.com
     - mail2@mail.com
-
-  user: mail@mails.com
-  password: 1234

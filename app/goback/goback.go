@@ -63,7 +63,9 @@ func (br *BackupRunner) Run() error {
 
 	for _, prfl := range br.profiles {
 		err := br.RunProfile(prfl)
-		errs = errors.Join(errs, fmt.Errorf("profile %s failed: %w", prfl.Name, err))
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("profile %s failed: %w", prfl.Name, err))
+		}
 	}
 
 	if errs != nil {
@@ -108,17 +110,17 @@ func RunWithNotify(prfl profile.Profile, log *slog.Logger, fn func(prfl profile.
 	err := fn(prfl, log)
 	if err != nil {
 		if prfl.Notify.HasValues() {
-			err2 := NotifyFailure(prfl.Notify, err)
+			err2 := NotifyFailure(prfl.Notify, prfl.Name, err)
 			if err2 != nil {
-				log.Error("Error while sending notification", "err", err)
+				log.Error("Error while sending notification", "err", err2)
 			}
 		}
 		return err
 	}
 	if prfl.Notify.HasValues() {
-		err2 := NotifySuccess(prfl.Notify)
+		err2 := NotifySuccess(prfl.Notify, prfl.Name)
 		if err2 != nil {
-			log.Error("Error while sending notification", "err", err)
+			log.Error("Error while sending notification", "err", err2)
 		}
 	}
 	return nil
