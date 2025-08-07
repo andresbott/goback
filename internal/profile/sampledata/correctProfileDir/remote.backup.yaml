@@ -28,7 +28,6 @@ destination:
   path: /backups
   keep: 3
   owner: "ble"
-  group: "ble"
   mode : "0600"
 
 notify:
