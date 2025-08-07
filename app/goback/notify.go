@@ -13,7 +13,7 @@ func NotifySuccess(cfg profile.EmailNotify, prfName string) error {
 
 	s.WriteString("Subject: Goback Success Notification\r\n")
 	s.WriteString("\r\n") // Email body starts here
-	s.WriteString(fmt.Sprintf("✅ Backup completed successfully.\n\n"))
+	s.WriteString("✅ Backup completed successfully.\n\n")
 	s.WriteString(fmt.Sprintf("Profile: %s\n", prfName))
 	s.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC1123)))
 	s.WriteString("\nEverything went as expected.\n")
@@ -26,7 +26,7 @@ func NotifyFailure(cfg profile.EmailNotify, prfName string, err error) error {
 
 	s.WriteString("Subject: Goback Failure Notification\r\n")
 	s.WriteString("\r\n") // Email body starts here
-	s.WriteString(fmt.Sprintf("❌ Backup failed.\n\n"))
+	s.WriteString("❌ Backup failed.\n\n")
 	s.WriteString(fmt.Sprintf("Profile: %s\n", prfName))
 	s.WriteString(fmt.Sprintf("Time: %s\n", time.Now().Format(time.RFC1123)))
 	s.WriteString(fmt.Sprintf("Error: %v\n", err))
