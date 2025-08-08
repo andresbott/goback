@@ -117,15 +117,16 @@ func (h *RemoteHandler) Run(sshc *ssh.Client, writer io.Writer) (err error) {
 		return fmt.Errorf("unable to set stdout pipe, %w", err)
 	}
 
-	// Set environment variables for PostgreSQL authentication
+	// Build command with environment variable if password is provided
+	var cmd string
 	if h.pw != "" {
-		err := sess.Setenv("PGPASSWORD", h.pw)
-		if err != nil {
-			return fmt.Errorf("unable to set env var: %w", err)
-		}
+		// Set PGPASSWORD environment variable directly in the command
+		cmd = fmt.Sprintf("PGPASSWORD=%s %s", h.pw, h.Cmd())
+	} else {
+		cmd = h.Cmd()
 	}
 
-	err = sess.Start(h.Cmd())
+	err = sess.Start(cmd)
 	if err != nil {
 		return fmt.Errorf("unable to start ssh command: %w", err)
 	}
