@@ -1,6 +1,7 @@
 package goback
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -210,6 +211,20 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 					return err
 				}
 
+			case profile.DbDockerMaria, profile.DbDockerMysql:
+				log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := mysqldump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+				err = mysqldump.WriteFromDocker(context.Background(), cfg, zipWriter)
+				if err != nil {
+					return err
+				}
+
 			default:
 				return fmt.Errorf("unknown db type: %s", db.Type)
 			}
@@ -328,6 +343,20 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 				}
 
 				err = mysqldump.WriteFromRemote(sshC, cfg, zipWriter)
+				if err != nil {
+					return err
+				}
+
+			case profile.DbDockerMaria, profile.DbDockerMysql:
+				log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := mysqldump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+				err = mysqldump.WriteFromSshDocker(sshC, cfg, zipWriter)
 				if err != nil {
 					return err
 				}

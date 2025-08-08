@@ -21,7 +21,10 @@ dirs:
 dbs:
   # name defined the database name
   - name: dbname
-    # the type defines the DB implementation: currently only mysql/mariadb are supported
+    # the type defines the DB implementation:
+    # * mysql/mariadb => run mysqldump
+    # * dockerMysql/DockerMariadb => run mysqldump from within a container name
+    #
     # NOTE this requrires to have mysqdump installed on the machine where the backup runs
     type: Mysql # explicitly making it the first letter upper case to test proper handling
     # user | password (optional) if set, it will use this credentials to run mysqldump
@@ -29,6 +32,8 @@ dbs:
     # or use the default socket auth.
     user: "myUser"
     password: "myPW"
+    # the container name where to run the dump
+    containerName: ""
 
 # in case of remote or sftpsync the ssh config is required.
 ssh:
