@@ -314,13 +314,14 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 		for _, db := range prfl.Dbs {
 			switch db.Type {
 			case profile.DbMysql, profile.DbMaria:
-				binPath, err := sshC.Which("mysqldump")
-				if err != nil {
-					return fmt.Errorf("error checking mysql binary: %v", err)
-				}
-
 				log.Info("backing up mysql database", "db", db.Name)
-				err = copyRemoteMysql(sshC, binPath, db, zipHandler)
+
+				cfg := mysqldump.RemoteCfg{
+					User:   db.User,
+					Pw:     db.Password,
+					DbName: db.Name,
+				}
+				err = mysqldump.WriteFromRemote(sshC, cfg, zipHandler)
 				if err != nil {
 					return err
 				}
