@@ -50,7 +50,7 @@ clean: ## clean the build environment
 
 check_env: # check for needed envs
 ifndef GITHUB_TOKEN
-	$(error GITHUB_TOKEN is undefined, create one with repo permissions here: https://github.com/settings/tokens/new?scopes=repo,write:packages)
+	$(error GITHUB_TOKEN is undefined, create one with repo permissions here: https://github.com/settings/tokens/new?scopes=repo,write%3Apackages )
 endif
 	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 
