@@ -91,29 +91,7 @@ func GetSshDockerBinPath(sshc *ssh.Client, containerName string) (string, error)
 	// Check if docker is available
 	_, err = sess.CombinedOutput("which docker")
 	if err != nil {
-		// Docker not available, try to find mysqldump directly on the host
-		sess2, err := sshc.Session()
-		if err != nil {
-			return "", fmt.Errorf("unable to create second ssh session: %v", err)
-		}
-		defer func() {
-			// we ignore the EOF error on close since it is expected if session was closed by wait()
-			if cErr := sess2.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
-				err = errors.Join(err, cErr)
-			}
-		}()
-
-		output, err := sess2.CombinedOutput("which mysqldump")
-		if err != nil {
-			return "", fmt.Errorf("mysqldump not found on host: %v", err)
-		}
-
-		path := strings.TrimSpace(string(output))
-		if path == "" {
-			return "", fmt.Errorf("mysqldump path is empty")
-		}
-
-		return path, nil
+		return "", fmt.Errorf("docker is not available on the remote server: %v", err)
 	}
 
 	// Docker is available, check if mysqldump is available in the container
@@ -132,28 +110,12 @@ func GetSshDockerBinPath(sshc *ssh.Client, containerName string) (string, error)
 
 	output, err := sess2.CombinedOutput(cmd)
 	if err != nil {
-		// If mysqldump is not found in container, try to find it on the host
-		sess3, err := sshc.Session()
-		if err != nil {
-			return "", fmt.Errorf("unable to create third ssh session: %v", err)
-		}
-		defer func() {
-			// we ignore the EOF error on close since it is expected if session was closed by wait()
-			if cErr := sess3.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
-				err = errors.Join(err, cErr)
-			}
-		}()
-
-		cmd = "which mysqldump"
-		output, err = sess3.CombinedOutput(cmd)
-		if err != nil {
-			return "", fmt.Errorf("mysqldump not found in container or on host: %v", err)
-		}
+		return "", fmt.Errorf("mysqldump not found in container %s: %v", containerName, err)
 	}
 
 	path := strings.TrimSpace(string(output))
 	if path == "" {
-		return "", fmt.Errorf("mysqldump path is empty")
+		return "", fmt.Errorf("mysqldump path is empty in container %s", containerName)
 	}
 
 	return path, nil
@@ -177,42 +139,7 @@ func (h *SshDockerHandler) Run(sshc *ssh.Client, writer io.Writer) (err error) {
 
 	_, err = dockerCheckSess.CombinedOutput("which docker")
 	if err != nil {
-		// Docker not available, run mysqldump directly on the host
-		cmd := h.binPath + " " + strings.Join(args, " ")
-
-		execSess, err := sshc.Session()
-		if err != nil {
-			return fmt.Errorf("unable to create ssh session for execution: %v", err)
-		}
-		defer func() {
-			// we ignore the EOF error on close since it is expected if session was closed by wait()
-			if cErr := execSess.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
-				err = errors.Join(err, cErr)
-			}
-		}()
-
-		outPipe, err := execSess.StdoutPipe()
-		if err != nil {
-			return fmt.Errorf("unable to set stdout pipe, %v", err)
-		}
-
-		err = execSess.Start(cmd)
-		if err != nil {
-			return fmt.Errorf("unable to start ssh command: %v", err)
-		}
-
-		// Copy output to writer
-		_, err = io.Copy(writer, outPipe)
-		if err != nil {
-			return fmt.Errorf("unable to copy mysqldump output: %v", err)
-		}
-
-		err = execSess.Wait()
-		if err != nil {
-			return fmt.Errorf("error with ssh command: %v", err)
-		}
-
-		return nil
+		return fmt.Errorf("docker is not available on the remote server: %v", err)
 	}
 
 	// Docker is available, build the docker exec command
