@@ -24,6 +24,8 @@ dbs:
     # the type defines the DB implementation:
     # * mysql/mariadb => run mysqldump
     # * dockerMysql/DockerMariadb => run mysqldump from within a container name
+    # * postgres => run pg_dump
+    # * dockerPostgres => run pg_dump from within a docker container
     #
     # NOTE this requrires to have mysqdump installed on the machine where the backup runs
     type: Mysql # explicitly making it the first letter upper case to test proper handling

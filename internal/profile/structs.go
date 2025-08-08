@@ -60,11 +60,12 @@ type BackupDb struct {
 type DbType string
 
 const (
-	DbMysql       DbType = "mysql"
-	DbDockerMysql DbType = "dockerMysql"
-	DbMaria       DbType = "mariadb"
-	DbDockerMaria DbType = "dockerMariadb"
-	DbPostgres    DbType = "postgres"
+	DbMysql          DbType = "mysql"
+	DbDockerMysql    DbType = "dockerMysql"
+	DbMaria          DbType = "mariadb"
+	DbDockerMaria    DbType = "dockerMariadb"
+	DbPostgres       DbType = "postgres"
+	DbDockerPostgres DbType = "dockerPostgres"
 )
 
 type Destination struct {

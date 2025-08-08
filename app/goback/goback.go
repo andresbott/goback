@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/AndresBott/goback/lib/pgdump"
 	"log/slog"
 	"os"
 	"os/user"
@@ -224,6 +225,33 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 				if err != nil {
 					return err
 				}
+			case profile.DbPostgres:
+				log.Info("backing up postgres database", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := pgdump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+				err = pgdump.WriteLocal(cfg, zipWriter)
+				if err != nil {
+					return err
+				}
+
+			case profile.DbDockerPostgres:
+				log.Info("backing up postgres database  that runs in docker", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := pgdump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+				err = pgdump.WriteFromDocker(context.Background(), cfg, zipWriter)
+				if err != nil {
+					return err
+				}
 
 			default:
 				return fmt.Errorf("unknown db type: %s", db.Type)
@@ -357,6 +385,34 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 
 				cfg := mysqldump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
 				err = mysqldump.WriteFromSshDocker(sshC, cfg, zipWriter)
+				if err != nil {
+					return err
+				}
+
+			case profile.DbPostgres:
+				log.Info("backing up postgres database", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := pgdump.RemoteCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+				err = pgdump.WriteFromRemote(sshC, cfg, zipWriter)
+				if err != nil {
+					return err
+				}
+
+			case profile.DbDockerPostgres:
+				log.Info("backing up postgres database  that runs in docker", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				cfg := pgdump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+				err = pgdump.WriteFromSshDocker(sshC, cfg, zipWriter)
 				if err != nil {
 					return err
 				}
