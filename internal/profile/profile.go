@@ -4,12 +4,13 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"github.com/gobwas/glob"
-	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/gobwas/glob"
+	"gopkg.in/yaml.v2"
 )
 
 // unmarshal the yaml into small struct to get the version of the config file
@@ -76,6 +77,36 @@ func loadProfileV1(data []byte) (Profile, error) {
 		return Profile{}, err
 	}
 
+	returnProfile, err := createProfile(loadedProfile)
+	if err != nil {
+		return Profile{}, err
+	}
+
+	if err := validateSshConfig(&returnProfile); err != nil {
+		return Profile{}, err
+	}
+
+	if err := validateBackupTargets(loadedProfile, returnProfile.Type); err != nil {
+		return Profile{}, err
+	}
+
+	dirs, err := processDirectories(loadedProfile.Dirs, returnProfile.Type)
+	if err != nil {
+		return Profile{}, err
+	}
+	returnProfile.Dirs = dirs
+
+	dbs, err := processDatabases(loadedProfile.Dbs)
+	if err != nil {
+		return Profile{}, err
+	}
+	returnProfile.Dbs = dbs
+
+	return returnProfile, nil
+}
+
+// createProfile creates and validates the basic profile structure
+func createProfile(loadedProfile profileV1) (Profile, error) {
 	if loadedProfile.Type == "" {
 		return Profile{}, errors.New("profile has no type")
 	}
@@ -92,61 +123,86 @@ func loadProfileV1(data []byte) (Profile, error) {
 		return Profile{}, errors.New("profile has invalid type")
 	}
 
-	// ensure values are lower type
+	// ensure values are lower case
 	returnProfile.Ssh.Type = ConnType(strings.ToLower(string(loadedProfile.Ssh.Type)))
 
 	if returnProfile.Name == "" {
 		return Profile{}, errors.New("profile name cannot be empty")
 	}
 
+	return returnProfile, nil
+}
+
+// validateSshConfig validates SSH configuration for profiles that require it
+func validateSshConfig(profile *Profile) error {
 	// requires ssh config
-	if slices.Contains([]ProfileType{TypeSftpSync, TypeRemote}, returnProfile.Type) {
-		if !slices.Contains([]ConnType{ConnTypeSshKey, ConnTypePasswd, ConnTypeSshAgent}, returnProfile.Ssh.Type) || returnProfile.Ssh.Type == "" {
-			return Profile{}, errors.New("profile has invalid ssh connection type")
+	if slices.Contains([]ProfileType{TypeSftpSync, TypeRemote}, profile.Type) {
+		if !slices.Contains([]ConnType{ConnTypeSshKey, ConnTypePasswd, ConnTypeSshAgent}, profile.Ssh.Type) || profile.Ssh.Type == "" {
+			return errors.New("profile has invalid ssh connection type")
 		}
-		if returnProfile.Ssh.Host == "" {
-			return Profile{}, errors.New("profile ssh host cannot be empty")
+		if profile.Ssh.Host == "" {
+			return errors.New("profile ssh host cannot be empty")
 		}
 
-		if returnProfile.Ssh.Port == 0 {
-			returnProfile.Ssh.Port = 22
+		if profile.Ssh.Port == 0 {
+			profile.Ssh.Port = 22
 		}
 	}
+	return nil
+}
 
-	// requires backup targets
-	if slices.Contains([]ProfileType{TypeLocal, TypeRemote}, returnProfile.Type) {
+// validateBackupTargets ensures profiles that need backup targets have them
+func validateBackupTargets(loadedProfile profileV1, profileType ProfileType) error {
+	if slices.Contains([]ProfileType{TypeLocal, TypeRemote}, profileType) {
 		if len(loadedProfile.Dbs) == 0 && len(loadedProfile.Dirs) == 0 {
-			return Profile{}, errors.New("nothing to backup")
+			return errors.New("nothing to backup")
 		}
 	}
+	return nil
+}
 
-	// handle directories
-	for _, dir := range loadedProfile.Dirs {
+// processDirectories processes and validates directory configurations
+func processDirectories(dirs []struct {
+	Path    string
+	Name    string
+	Exclude []string
+}, profileType ProfileType) ([]BackupPath, error) {
+	var backupDirs []BackupPath
+
+	for _, dir := range dirs {
 		d := BackupPath{
 			Path: dir.Path,
 			Name: dir.Name,
 		}
+
 		for _, excl := range dir.Exclude {
 			g, gerr := glob.Compile(excl)
 			if gerr != nil {
-				return Profile{}, fmt.Errorf("unable to compile exclude pattern: %w", gerr)
+				return nil, fmt.Errorf("unable to compile exclude pattern: %w", gerr)
 			}
 			d.Exclude = append(d.Exclude, g)
 		}
+
 		if d.Path == "" {
-			return Profile{}, errors.New("profile path cannot be empty")
+			return nil, errors.New("profile path cannot be empty")
 		}
 
 		// if type is sftpsync we also require a profile name
-		if returnProfile.Type == TypeSftpSync && d.Name == "" {
-			return Profile{}, errors.New("profile name for sync path cannot be empty")
+		if profileType == TypeSftpSync && d.Name == "" {
+			return nil, errors.New("profile name for sync path cannot be empty")
 		}
 
-		returnProfile.Dirs = append(returnProfile.Dirs, d)
+		backupDirs = append(backupDirs, d)
 	}
 
-	// Handle DBs
-	for _, db := range loadedProfile.Dbs {
+	return backupDirs, nil
+}
+
+// processDatabases processes and validates database configurations
+func processDatabases(dbs []BackupDb) ([]BackupDb, error) {
+	var backupDbs []BackupDb
+
+	for _, db := range dbs {
 		d := BackupDb{
 			Name:          db.Name,
 			Type:          DbType(strings.ToLower(string(db.Type))),
@@ -157,13 +213,14 @@ func loadProfileV1(data []byte) (Profile, error) {
 
 		if slices.Contains([]DbType{DbDockerPostgres, DbDockerMysql}, d.Type) {
 			if d.ContainerName == "" {
-				return Profile{}, errors.New("DB container name cannot be empty")
+				return nil, errors.New("DB container name cannot be empty")
 			}
 		}
 
-		returnProfile.Dbs = append(returnProfile.Dbs, d)
+		backupDbs = append(backupDbs, d)
 	}
-	return returnProfile, nil
+
+	return backupDbs, nil
 }
 
 const profileExt = ".backup.yaml"

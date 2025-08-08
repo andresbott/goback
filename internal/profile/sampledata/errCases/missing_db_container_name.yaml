@@ -1,0 +1,14 @@
+version: 1
+name: testProfile
+type: local
+
+dbs:
+  - name: testdb
+    type: dockermysql
+    user: testuser
+    password: testpass
+    # containerName is missing - this should cause an error
+
+destination:
+  path: /backups
+  keep: 3 

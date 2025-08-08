@@ -1,0 +1,14 @@
+version: 1
+name: testProfilePostgres
+type: local
+
+dbs:
+  - name: testdb
+    type: dockerpostgres
+    user: testuser
+    password: testpass
+    # containerName is missing - this should cause an error
+
+destination:
+  path: /backups
+  keep: 3 

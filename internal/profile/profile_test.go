@@ -1,10 +1,11 @@
 package profile
 
 import (
-	"github.com/gobwas/glob"
-	"github.com/google/go-cmp/cmp"
 	"strings"
 	"testing"
+
+	"github.com/gobwas/glob"
+	"github.com/google/go-cmp/cmp"
 )
 
 func getGlob(in string) glob.Glob {
@@ -259,6 +260,16 @@ func TestLoadProfileErrors(t *testing.T) {
 			name:      "missing sync path name",
 			file:      "sampledata/errCases/missing_sync_path_name.yaml",
 			wantError: "profile name for sync path cannot be empty",
+		},
+		{
+			name:      "missing container name for docker database",
+			file:      "sampledata/errCases/missing_db_container_name.yaml",
+			wantError: "DB container name cannot be empty",
+		},
+		{
+			name:      "missing container name for docker postgres database",
+			file:      "sampledata/errCases/missing_db_container_name_postgres.yaml",
+			wantError: "DB container name cannot be empty",
 		},
 	}
 
