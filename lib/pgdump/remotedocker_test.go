@@ -1,13 +1,56 @@
 package pgdump
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	"github.com/AndresBott/goback/lib/ssh"
 )
 
+func TestGetSshDockerBinPathRequiresDocker(t *testing.T) {
+	skipInCI(t) // skip test if running in CI
+
+	ctx := context.Background()
+	sshServer, err := setupContainer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = sshServer.Terminate(ctx)
+	}()
+
+	cl, err := ssh.New(ssh.Cfg{
+		Host:          sshServer.host,
+		Port:          sshServer.port,
+		Auth:          ssh.Password,
+		User:          "pwuser",
+		Password:      "1234",
+		IgnoreHostKey: true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	_ = cl.Connect()
+
+	// Test that it fails when Docker is not available
+	// Since the test container doesn't have Docker, this should fail
+	_, err = GetSshDockerBinPath(cl, "postgres-container")
+	if err == nil {
+		t.Fatalf("expected error when Docker is not available, but got none")
+	}
+
+	// Check that the error message indicates Docker is required
+	if !strings.Contains(err.Error(), "docker is not available") {
+		t.Errorf("expected error to mention Docker not available, got: %v", err)
+	}
+}
+
 func TestWriteFromSshDocker(t *testing.T) {
-	// This test would require a real SSH client, so we'll skip it for now
-	// In a real implementation, you'd need to mock the SSH client or have a real connection
-	t.Skip("SSH+Docker test requires real SSH client")
+	// This test would require Docker to be installed in the test container
+	// For now, we'll skip it as the main focus is testing the basic SSH+Docker logic
+	t.Skip("SSH+Docker test requires Docker to be installed in test container")
 }
 
 func TestNewSshDocker(t *testing.T) {
