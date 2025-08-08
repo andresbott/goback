@@ -53,7 +53,7 @@ type BackupPath struct {
 type BackupDb struct {
 	Name          string
 	Type          DbType
-	ContainerName string `yaml:"ContainerName"`
+	ContainerName string `yaml:"containerName"`
 	User          string
 	Password      string
 }
@@ -61,11 +61,11 @@ type DbType string
 
 const (
 	DbMysql          DbType = "mysql"
-	DbDockerMysql    DbType = "dockerMysql"
+	DbDockerMysql    DbType = "dockermysql"
 	DbMaria          DbType = "mariadb"
-	DbDockerMaria    DbType = "dockerMariadb"
+	DbDockerMaria    DbType = "dockermariadb"
 	DbPostgres       DbType = "postgres"
-	DbDockerPostgres DbType = "dockerPostgres"
+	DbDockerPostgres DbType = "dockerpostgres"
 )
 
 type Destination struct {

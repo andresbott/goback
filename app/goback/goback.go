@@ -69,6 +69,7 @@ func (br *BackupRunner) Run() error {
 	for _, prfl := range br.profiles {
 		err := br.RunProfile(prfl)
 		if err != nil {
+			br.Logger.Error("Profile execution failed", "profile", prfl.Name, "error", err.Error())
 			errs = errors.Join(errs, fmt.Errorf("profile %s failed: %w", prfl.Name, err))
 		}
 	}
@@ -332,6 +333,7 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 	// dump DBs into the zip
 	if len(prfl.Dbs) > 0 {
 		for _, db := range prfl.Dbs {
+			log.Info("backing up Database", "db", db.Name, "type", db.Type)
 			err = backupLocalDatabase(db, zipHandler, log)
 			if err != nil {
 				return err

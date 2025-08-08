@@ -45,6 +45,13 @@ func TestLoadProfile(t *testing.T) {
 						Password: "pw",
 						Type:     DbMysql,
 					},
+					{
+						Name:          "dockerPG",
+						User:          "user_pg",
+						Password:      "pw_pg",
+						Type:          DbDockerPostgres,
+						ContainerName: "container",
+					},
 				},
 				Destination: Destination{
 					Path:  "/backups",

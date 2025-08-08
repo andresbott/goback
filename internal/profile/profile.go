@@ -113,7 +113,7 @@ func loadProfileV1(data []byte) (Profile, error) {
 		}
 	}
 
-	// requires bbackup targets
+	// requires backup targets
 	if slices.Contains([]ProfileType{TypeLocal, TypeRemote}, returnProfile.Type) {
 		if len(loadedProfile.Dbs) == 0 && len(loadedProfile.Dirs) == 0 {
 			return Profile{}, errors.New("nothing to backup")
@@ -148,11 +148,19 @@ func loadProfileV1(data []byte) (Profile, error) {
 	// Handle DBs
 	for _, db := range loadedProfile.Dbs {
 		d := BackupDb{
-			Name:     db.Name,
-			Type:     DbType(strings.ToLower(string(db.Type))),
-			User:     db.User,
-			Password: db.Password,
+			Name:          db.Name,
+			Type:          DbType(strings.ToLower(string(db.Type))),
+			User:          db.User,
+			Password:      db.Password,
+			ContainerName: db.ContainerName,
 		}
+
+		if slices.Contains([]DbType{DbDockerPostgres, DbDockerMysql}, d.Type) {
+			if d.ContainerName == "" {
+				return Profile{}, errors.New("DB container name cannot be empty")
+			}
+		}
+
 		returnProfile.Dbs = append(returnProfile.Dbs, d)
 	}
 	return returnProfile, nil
