@@ -11,15 +11,20 @@
 [![License](https://img.shields.io/github/license/samber/slog-multi)](./LICENSE)
 
 Design workflows of [slog](https://pkg.go.dev/log/slog) handlers:
-- **fanout**: distribute `log.Record` to multiple `slog.Handler` in parallel
-- **pipeline**: rewrite `log.Record` on the fly (eg: for privacy reason)
-- **routing**: forward `log.Record` to all matching `slog.Handler`
-- **failover**: forward `log.Record` to the first available `slog.Handler`
-- **load balancing**: increase log bandwidth by sending `log.Record` to a pool of `slog.Handler`
+- **Fanout**: distribute `log.Record` to multiple `slog.Handler` in parallel
+- **Pipe**: rewrite `log.Record` on the fly (eg: for privacy reasons)
+- **Router**: forward `log.Record` to all matching `slog.Handler`
+- **Failover**: forward `log.Record` to the first available `slog.Handler`
+- **Pool**: increase log bandwidth by sending `log.Record` to a pool of `slog.Handler`
+- **RecoverHandlerError**: catch panics and errors from handlers
 
-Here a simple workflow with both pipeline and fanout:
+Here is a simple workflow with both pipeline and fanout:
 
 ![workflow example with pipeline and fanout](./images/workflow.png)
+
+Middlewares:
+- [Inline handler](#inline-handler): a shortcut to implement `slog.Handler`
+- [Inline middleware](#inline-middleware): a shortcut to implement `slogmulti.Middleware`
 
 <div align="center">
   <hr>
@@ -289,6 +294,41 @@ func main() {
 }
 ```
 
+### Recover errors: `slog.RecoverHandlerError()`
+
+Returns a `slog.Handler` that recovers from panics or error of the chain of handlers.
+
+```go
+import (
+	slogformatter "github.com/samber/slog-formatter"
+	slogmulti "github.com/samber/slog-multi"
+	"log/slog"
+)
+
+recovery := slogmulti.RecoverHandlerError(
+    func(ctx context.Context, record slog.Record, err error) {
+        // will be called only if subsequent handlers fail or return an error
+        log.Println(err.Error())
+    },
+)
+sink := NewSinkHandler(...)
+
+logger := slog.New(
+    slogmulti.
+        Pipe(recovery).
+        Handler(sink),
+)
+
+err := fmt.Errorf("an error")
+logger.Error("a message",
+    slog.Any("very_private_data", "abcd"),
+    slog.Any("user", user),
+    slog.Any("err", err))
+
+// outputs:
+// time=2023-04-10T14:00:0.000000+00:00 level=ERROR msg="a message" error.message="an error" error.type="*errors.errorString" user="John doe" very_private_data="********"
+```
+
 ### Chaining: `slogmulti.Pipe()`
 
 Rewrite `log.Record` on the fly (eg: for privacy reason).
@@ -365,7 +405,7 @@ Note: `WithAttrs` and `WithGroup` methods of custom middleware must return a new
 
 #### Inline handler
 
-An "inline handler" (aka. lambda), is a shortcut to handler implement, that hooks a single method and proxies others.
+An "inline handler" (aka. lambda), is a shortcut to implement `slog.Handler`, that hooks a single method and proxies others.
 
 ```go
 mdw := slogmulti.NewHandleInlineHandler(
@@ -394,7 +434,7 @@ mdw := slogmulti.NewInlineHandler(
 
 #### Inline middleware
 
-An "inline middleware" (aka. lambda), is a shortcut to middleware implementation, that hooks a single method and proxies others.
+An "inline middleware" (aka. lambda), is a shortcut to implement middleware, that hooks a single method and proxies others.
 
 ```go
 // hook `logger.Enabled` method

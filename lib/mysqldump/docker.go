@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	docker "github.com/docker/docker/client"
 	"io"
 	"strings"
+
+	"github.com/docker/docker/api/types/container"
+	docker "github.com/docker/docker/client"
 )
 
 type DockerCfg struct {
@@ -107,7 +108,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	args := getArgs(h.user, h.pw, h.dbName)
 
 	// Create the exec
-	execResp, err := h.client.ContainerExecCreate(ctx, h.containerName, types.ExecConfig{
+	execResp, err := h.client.ContainerExecCreate(ctx, h.containerName, container.ExecOptions{
 		Cmd:          append([]string{h.binPath}, args...),
 		AttachStdout: true,
 		AttachStderr: false,
@@ -117,7 +118,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	}
 
 	// Attach to the exec to get the output
-	output, err := h.client.ContainerExecAttach(ctx, execResp.ID, types.ExecStartCheck{})
+	output, err := h.client.ContainerExecAttach(ctx, execResp.ID, container.ExecAttachOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to attach to container exec: %v", err)
 	}
@@ -152,7 +153,7 @@ func GetDockerBinPath(ctx context.Context, dockerClient *docker.Client, containe
 	output := ""
 
 	// Try to find mysqldump using 'which' command
-	whichResp, err := dockerClient.ContainerExecCreate(ctx, containerName, types.ExecConfig{
+	whichResp, err := dockerClient.ContainerExecCreate(ctx, containerName, container.ExecOptions{
 		Cmd:          []string{"which", "mysqldump"},
 		AttachStdout: true,
 		AttachStderr: false,
@@ -161,7 +162,7 @@ func GetDockerBinPath(ctx context.Context, dockerClient *docker.Client, containe
 		return output, fmt.Errorf("unable to create which command exec: %v", err)
 	}
 
-	whichOutput, err := dockerClient.ContainerExecAttach(ctx, whichResp.ID, types.ExecStartCheck{})
+	whichOutput, err := dockerClient.ContainerExecAttach(ctx, whichResp.ID, container.ExecAttachOptions{})
 	if err != nil {
 		return output, fmt.Errorf("unable to attach to which command exec: %v", err)
 	}

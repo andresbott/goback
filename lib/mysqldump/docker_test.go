@@ -2,15 +2,16 @@ package mysqldump
 
 import (
 	"context"
-	zipHandler "github.com/AndresBott/goback/lib/zip"
-	"github.com/google/go-cmp/cmp"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	zipHandler "github.com/AndresBott/goback/lib/zip"
+	"github.com/google/go-cmp/cmp"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 func TestWriteFromDocker(t *testing.T) {

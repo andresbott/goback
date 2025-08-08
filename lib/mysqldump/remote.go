@@ -74,7 +74,7 @@ func (h *RemoteHandler) Cmd() string {
 }
 
 // GetRemoteBinPath will check if mysqldump is installed on the remote machine and return the corresponding absolute path
-func GetRemoteBinPath(sshc *ssh.Client) (string, error) {
+func GetRemoteBinPath(sshc *ssh.Client) (out string, err error) {
 	sess, err := sshc.Session()
 	if err != nil {
 		return "", fmt.Errorf("unable to create ssh session: %v", err)
@@ -82,7 +82,7 @@ func GetRemoteBinPath(sshc *ssh.Client) (string, error) {
 	defer func() {
 		// we ignore the EOF error on close since it is expected if session was closed by wait()
 		if cErr := sess.Close(); cErr != nil && !errors.Is(cErr, io.EOF) {
-			// ignore close errors
+			err = errors.Join(err, cErr)
 		}
 	}()
 
