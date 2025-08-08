@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestWriteFromRemote(t *testing.T) {
+func TestWriteFromSshDocker(t *testing.T) {
 	skipInCI(t) // skip test if running in CI
 
 	ctx := context.Background()
@@ -35,17 +35,18 @@ func TestWriteFromRemote(t *testing.T) {
 
 	_ = cl.Connect()
 
-	cfg := RemoteCfg{
-		BinPath: "/usr/local/bin/mysqldump",
-		User:    "user",
-		Pw:      "pass",
-		DbName:  "testDbName",
+	cfg := SshDockerCfg{
+		ContainerName: "mysql-container",
+		BinPath:       "/usr/local/bin/mysqldump",
+		User:          "user",
+		Pw:            "pass",
+		DbName:        "testDbName",
 	}
 
 	// Create a buffer to capture the output
 	var output strings.Builder
 
-	err = WriteFromRemote(cl, cfg, &output)
+	err = WriteFromSshDocker(cl, cfg, &output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestWriteFromRemote(t *testing.T) {
 	}
 }
 
-func TestGetRemoteBinPath(t *testing.T) {
+func TestGetSshDockerBinPath(t *testing.T) {
 	skipInCI(t) // skip test if running in CI
 
 	ctx := context.Background()
@@ -84,8 +85,8 @@ func TestGetRemoteBinPath(t *testing.T) {
 
 	_ = cl.Connect()
 
-	// Test that we can find the mysqldump binary
-	binPath, err := GetRemoteBinPath(cl)
+	// Test that we can find the mysqldump binary in the container
+	binPath, err := GetSshDockerBinPath(cl, "mysql-container")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -97,7 +98,7 @@ func TestGetRemoteBinPath(t *testing.T) {
 	}
 }
 
-func TestWriteFromRemoteWithAutoBinPath(t *testing.T) {
+func TestWriteFromSshDockerWithAutoBinPath(t *testing.T) {
 	skipInCI(t) // skip test if running in CI
 
 	ctx := context.Background()
@@ -124,17 +125,18 @@ func TestWriteFromRemoteWithAutoBinPath(t *testing.T) {
 	_ = cl.Connect()
 
 	// Test with empty BinPath to trigger auto-discovery
-	cfg := RemoteCfg{
-		BinPath: "", // This should trigger GetRemoteBinPath
-		User:    "user",
-		Pw:      "pass",
-		DbName:  "testDbName",
+	cfg := SshDockerCfg{
+		ContainerName: "mysql-container",
+		BinPath:       "", // This should trigger GetSshDockerBinPath
+		User:          "user",
+		Pw:            "pass",
+		DbName:        "testDbName",
 	}
 
 	// Create a buffer to capture the output
 	var output strings.Builder
 
-	err = WriteFromRemote(cl, cfg, &output)
+	err = WriteFromSshDocker(cl, cfg, &output)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

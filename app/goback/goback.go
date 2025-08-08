@@ -321,7 +321,13 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 					Pw:     db.Password,
 					DbName: db.Name,
 				}
-				err = mysqldump.WriteFromRemote(sshC, cfg, zipHandler)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+				if err != nil {
+					return err
+				}
+
+				err = mysqldump.WriteFromRemote(sshC, cfg, zipWriter)
 				if err != nil {
 					return err
 				}

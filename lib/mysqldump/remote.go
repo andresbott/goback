@@ -4,11 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/AndresBott/goback/lib/ssh"
-	"github.com/AndresBott/goback/lib/zip"
 )
 
 type RemoteCfg struct {
@@ -18,7 +16,7 @@ type RemoteCfg struct {
 	DbName  string
 }
 
-func WriteFromRemote(sshc *ssh.Client, cfg RemoteCfg, zipHandler *zip.Handler) (err error) {
+func WriteFromRemote(sshc *ssh.Client, cfg RemoteCfg, writer io.Writer) (err error) {
 	dbHandler, err := NewRemote(cfg)
 	if err != nil {
 		return err
@@ -33,7 +31,7 @@ func WriteFromRemote(sshc *ssh.Client, cfg RemoteCfg, zipHandler *zip.Handler) (
 		dbHandler.SetBinPath(binPath)
 	}
 
-	err = dbHandler.Run(sshc, zipHandler)
+	err = dbHandler.Run(sshc, writer)
 	if err != nil {
 		return err
 	}
@@ -102,7 +100,7 @@ func GetRemoteBinPath(sshc *ssh.Client) (out string, err error) {
 }
 
 // Run will execute mysqldump on the remote machine via SSH and write the output to the zip file
-func (h *RemoteHandler) Run(sshc *ssh.Client, zipHandler *zip.Handler) (err error) {
+func (h *RemoteHandler) Run(sshc *ssh.Client, writer io.Writer) (err error) {
 	sess, err := sshc.Session()
 	if err != nil {
 		return fmt.Errorf("unable to create ssh session: %v", err)
@@ -124,9 +122,8 @@ func (h *RemoteHandler) Run(sshc *ssh.Client, zipHandler *zip.Handler) (err erro
 		return fmt.Errorf("unable to start ssh command: %v", err)
 	}
 
-	err = zipHandler.WriteFile(outPipe, filepath.Join("_mysqldump", h.dbName+".dump.sql"))
-	if err != nil {
-		return fmt.Errorf("unable write mysql output to zip file, %v", err)
+	if _, err := io.Copy(writer, outPipe); err != nil {
+		return fmt.Errorf("error writing output to writer: %v", err)
 	}
 
 	err = sess.Wait()
