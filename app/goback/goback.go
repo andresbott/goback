@@ -3,16 +3,18 @@ package goback
 import (
 	"errors"
 	"fmt"
-	"github.com/AndresBott/goback/lib/mysqldump"
-	"github.com/AndresBott/goback/lib/ssh"
-	"github.com/AndresBott/goback/lib/zip"
-	"github.com/pkg/sftp"
 	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/AndresBott/goback/lib/mysqldump"
+
+	"github.com/AndresBott/goback/lib/ssh"
+	"github.com/AndresBott/goback/lib/zip"
+	"github.com/pkg/sftp"
 
 	"github.com/AndresBott/goback/internal/profile"
 )
@@ -195,14 +197,15 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 		for _, db := range prfl.Dbs {
 			switch db.Type {
 			case profile.DbMysql, profile.DbMaria:
-				// check for mysqldump installed
-				binPath, err := mysqldump.GetBinPath()
+				log.Info("backing up mysql/mariaDB database", "db", db.Name)
+
+				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
 				if err != nil {
 					return err
 				}
 
-				log.Info("backing up mysql/mariaDB database", "db", db.Name)
-				err = copyLocalMysql(binPath, db, zipHandler)
+				cfg := mysqldump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+				err = mysqldump.WriteLocal(cfg, zipWriter)
 				if err != nil {
 					return err
 				}

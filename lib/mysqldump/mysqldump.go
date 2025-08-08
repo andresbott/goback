@@ -12,27 +12,48 @@ import (
 	"strings"
 )
 
-type Handler struct {
-	binPath string
-	dbName  string
-	user    string
-	pw      string
-}
-
-type Cfg struct {
+type LocalCfg struct {
 	BinPath string
 	User    string
 	Pw      string
 	DbName  string
 }
 
-// New returns a new mysqldump handler used to dump a specific database
-func New(cfg Cfg) (*Handler, error) {
-	h := Handler{
+func WriteLocal(cfg LocalCfg, writer io.Writer) error {
+	dbHandler, err := NewLocal(cfg)
+	if err != nil {
+		return err
+	}
+	err = dbHandler.Run(writer)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type LocalHandler struct {
+	binPath string
+	dbName  string
+	user    string
+	pw      string
+}
+
+// NewLocal returns a new local mysqldump handler used to dump a specific database
+func NewLocal(cfg LocalCfg) (*LocalHandler, error) {
+	h := LocalHandler{
 		binPath: cfg.BinPath,
 		dbName:  cfg.DbName,
 		user:    cfg.User,
 		pw:      cfg.Pw,
+	}
+
+	// get default mysqldump path
+	if h.binPath == "" {
+		binPath, err := GetLocalBinPath()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get path for mysqldump: %w", err)
+		}
+		h.binPath = binPath
 	}
 
 	// only try to read user/pw from mysql config if it is not explicitly set
@@ -45,9 +66,24 @@ func New(cfg Cfg) (*Handler, error) {
 	return &h, nil
 }
 
+// GetLocalBinPath will check if mysqldump installed and return the corresponding absolute path
+func GetLocalBinPath() (string, error) {
+	// check for mysqldump installed
+	binPath, err := exec.LookPath("mysqldump")
+	if err != nil {
+		return "", err
+	}
+	binPath, err = filepath.Abs(binPath)
+	if err != nil {
+		return "", err
+	}
+
+	return binPath, nil
+}
+
 // loadCnfFiles will try to extract the user/pw from known mysql ini files,
 // if the information is not found, an error is returned
-func (h *Handler) loadCnfFiles(files []string) error {
+func (h *LocalHandler) loadCnfFiles(files []string) error {
 
 	usr := ""
 	pw := ""
@@ -82,43 +118,43 @@ func (h *Handler) loadCnfFiles(files []string) error {
 	return nil
 }
 
-func (h *Handler) Cmd() string {
-	cmd, args := h.getCmd()
-	return cmd + " " + strings.Join(args, " ")
+func (h *LocalHandler) Cmd() (string, []string) {
+	args := getArgs(h.user, h.pw, h.dbName)
+	return h.binPath, args
 }
 
-// getCmd returns the cmd parameters to be used when we invoke mysqldump
-func (h *Handler) getCmd() (string, []string) {
+// getArgs returns the cmd parameters to be used when we invoke mysqldump
+func getArgs(user, pass, dbname string) []string {
 
 	var args []string
-	if h.user != "" {
-		args = append(args, "-u", sanitizeString(h.user))
+	if user != "" {
+		args = append(args, "-u", sanitizeString(user))
 	}
-	if h.pw != "" {
-		args = append(args, "-p"+sanitizeString(h.pw))
+	if pass != "" {
+		args = append(args, "-p"+sanitizeString(pass))
 	}
 	args = append(args,
 		"--add-drop-database",
 		"--databases",
-		sanitizeString(h.dbName),
+		sanitizeString(dbname),
 	)
-	return h.binPath, args
+	return args
 }
 
-func sanitizeString(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, " ", "_")
-	s = strings.ReplaceAll(s, "\n", "_")
-	s = strings.ReplaceAll(s, "\r", "_")
-	return s
-}
+// Run will execute mysqldump and write the output into the passed writer
+func (h *LocalHandler) Run(w io.Writer) error {
 
-// Exec will execute mysqldump and write the output into the passed writer
-func (h *Handler) Exec(w io.Writer) error {
+	// Check if binPath exists
+	if _, err := os.Stat(h.binPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("binary not found at path: %s", h.binPath)
+		}
+		return fmt.Errorf("failed to check binary path: %w", err)
+	}
 
-	bin, args := h.getCmd()
-	// #nosec G204 -- bin and args are validated
-	cmd := exec.Command(bin, args...)
+	args := getArgs(h.user, h.pw, h.dbName)
+	// #nosec G204 -- bin and args need to be provided by the caller
+	cmd := exec.Command(h.binPath, args...)
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -143,19 +179,12 @@ func (h *Handler) Exec(w io.Writer) error {
 	return nil
 }
 
-// GetBinPath will check if mysqldump installed and return the corresponding absolute path
-func GetBinPath() (string, error) {
-	// check for mysqldump installed
-	binPath, err := exec.LookPath("mysqldump")
-	if err != nil {
-		return "", err
-	}
-	binPath, err = filepath.Abs(binPath)
-	if err != nil {
-		return "", err
-	}
-
-	return binPath, nil
+func sanitizeString(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, " ", "_")
+	s = strings.ReplaceAll(s, "\n", "_")
+	s = strings.ReplaceAll(s, "\r", "_")
+	return s
 }
 
 // MysqlIniLocations return a sorted list of locations to check for user/pw configuration

@@ -15,57 +15,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestCopyMysql_local(t *testing.T) {
-
-	setup := func(t *testing.T) (string, *zipHandler.Handler) {
-		dir := t.TempDir()
-		zipFile := dir + "/test_zip.zip"
-
-		zh, err := zipHandler.New(zipFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return zipFile, zh
-	}
-	zipFile, zh := setup(t)
-	mockBin := "./sampledata/mysqldump"
-
-	in := profile.BackupDb{
-		Name:     "testDbName",
-		User:     "user",
-		Password: "pass",
-	}
-
-	err := copyLocalMysql(mockBin, in, zh)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	zh.Close()
-
-	got, err := listFilesInZip(zipFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	expect := []string{
-		"_mysqldump/testDbName.dump.sql",
-	}
-	if diff := cmp.Diff(expect, got); diff != "" {
-		t.Errorf("output mismatch (-want +got):\n%s", diff)
-	}
-
-	expectContent := "mysqldump mock binary, params: -u user -ppass --add-drop-database --databases testDbName\n"
-	gotContent, err := readFileInZip(zipFile, "_mysqldump/testDbName.dump.sql")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if diff := cmp.Diff(expectContent, gotContent); diff != "" {
-		t.Errorf("output mismatch (-want +got):\n%s", diff)
-	}
-
-}
-
 func TestCopyMysql_remote(t *testing.T) {
 	skipInCI(t) // skip test if running in CI
 
@@ -111,68 +60,6 @@ func TestCopyMysql_remote(t *testing.T) {
 	_ = cl.Connect()
 
 	err = copyRemoteMysql(cl, "/usr/local/bin/mysqldump", in, zh)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	zh.Close()
-
-	got, err := listFilesInZip(zipFile)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	expect := []string{
-		"_mysqldump/testDbName.dump.sql",
-	}
-	if diff := cmp.Diff(expect, got); diff != "" {
-		t.Errorf("output mismatch (-want +got):\n%s", diff)
-	}
-
-	expectContent := "mysqldump mock binary, params: -u user -ppass --add-drop-database --databases testDbName\n"
-	gotContent, err := readFileInZip(zipFile, "_mysqldump/testDbName.dump.sql")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if diff := cmp.Diff(expectContent, gotContent); diff != "" {
-		t.Errorf("output mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestCopyMysql_docker(t *testing.T) {
-	skipInCI(t) // skip test if running in CI
-
-	ctx := context.Background()
-	sshServer, err := setupContainer(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = sshServer.Terminate(ctx)
-	}()
-
-	setup := func(t *testing.T) (string, *zipHandler.Handler) {
-		dir := t.TempDir()
-		zipFile := dir + "/test_zip.zip"
-
-		zh, err := zipHandler.New(zipFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return zipFile, zh
-	}
-	zipFile, zh := setup(t)
-
-	dbPrfl := profile.BackupDb{
-		Name:     "testDbName",
-		User:     "user",
-		Password: "pass",
-	}
-
-	// Get the container ID from the sshServer
-	containerID := sshServer.GetContainerID()
-
-	err = copyLocalDockerMysql(containerID, dbPrfl, zh)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
