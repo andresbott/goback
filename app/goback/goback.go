@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/AndresBott/goback/lib/pgdump"
 	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/AndresBott/goback/lib/pgdump"
 
 	"github.com/AndresBott/goback/lib/mysqldump"
 
@@ -177,6 +178,140 @@ func runLocalProfile(prfl profile.Profile, log *slog.Logger) error {
 	return nil
 }
 
+// backupLocalDatabase handles database backup for local profiles
+func backupLocalDatabase(db profile.BackupDb, zipHandler *zip.Handler, log *slog.Logger) error {
+	switch db.Type {
+	case profile.DbMysql, profile.DbMaria:
+		log.Info("backing up mysql/mariaDB database", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := mysqldump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+		err = mysqldump.WriteLocal(cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	case profile.DbDockerMaria, profile.DbDockerMysql:
+		log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := mysqldump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+		err = mysqldump.WriteFromDocker(context.Background(), cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+	case profile.DbPostgres:
+		log.Info("backing up postgres database", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := pgdump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+		err = pgdump.WriteLocal(cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	case profile.DbDockerPostgres:
+		log.Info("backing up postgres database  that runs in docker", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := pgdump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+		err = pgdump.WriteFromDocker(context.Background(), cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("unknown db type: %s", db.Type)
+	}
+	return nil
+}
+
+// backupRemoteDatabase handles database backup for remote profiles
+func backupRemoteDatabase(sshC *ssh.Client, db profile.BackupDb, zipHandler *zip.Handler, log *slog.Logger) error {
+	switch db.Type {
+	case profile.DbMysql, profile.DbMaria:
+		log.Info("backing up mysql database", "db", db.Name)
+
+		cfg := mysqldump.RemoteCfg{
+			User:   db.User,
+			Pw:     db.Password,
+			DbName: db.Name,
+		}
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		err = mysqldump.WriteFromRemote(sshC, cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	case profile.DbDockerMaria, profile.DbDockerMysql:
+		log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := mysqldump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+		err = mysqldump.WriteFromSshDocker(sshC, cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	case profile.DbPostgres:
+		log.Info("backing up postgres database", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := pgdump.RemoteCfg{User: db.User, Pw: db.Password, DbName: db.Name}
+		err = pgdump.WriteFromRemote(sshC, cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	case profile.DbDockerPostgres:
+		log.Info("backing up postgres database  that runs in docker", "db", db.Name)
+
+		zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
+		if err != nil {
+			return err
+		}
+
+		cfg := pgdump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
+		err = pgdump.WriteFromSshDocker(sshC, cfg, zipWriter)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("unknown db type: %s", db.Type)
+	}
+	return nil
+}
+
 // backupLocal will run all the backup steps when running on the same machine
 func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) error {
 
@@ -194,67 +329,12 @@ func backupLocal(prfl profile.Profile, zipDestination string, log *slog.Logger) 
 		}
 	}
 
-	// dump mysql DBs into the zip
+	// dump DBs into the zip
 	if len(prfl.Dbs) > 0 {
 		for _, db := range prfl.Dbs {
-			switch db.Type {
-			case profile.DbMysql, profile.DbMaria:
-				log.Info("backing up mysql/mariaDB database", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := mysqldump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
-				err = mysqldump.WriteLocal(cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			case profile.DbDockerMaria, profile.DbDockerMysql:
-				log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := mysqldump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
-				err = mysqldump.WriteFromDocker(context.Background(), cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-			case profile.DbPostgres:
-				log.Info("backing up postgres database", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := pgdump.LocalCfg{User: db.User, Pw: db.Password, DbName: db.Name}
-				err = pgdump.WriteLocal(cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			case profile.DbDockerPostgres:
-				log.Info("backing up postgres database  that runs in docker", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := pgdump.DockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
-				err = pgdump.WriteFromDocker(context.Background(), cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			default:
-				return fmt.Errorf("unknown db type: %s", db.Type)
+			err = backupLocalDatabase(db, zipHandler, log)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -355,70 +435,9 @@ func backupRemote(prfl profile.Profile, dest string, log *slog.Logger) error {
 
 	if len(prfl.Dbs) > 0 {
 		for _, db := range prfl.Dbs {
-			switch db.Type {
-			case profile.DbMysql, profile.DbMaria:
-				log.Info("backing up mysql database", "db", db.Name)
-
-				cfg := mysqldump.RemoteCfg{
-					User:   db.User,
-					Pw:     db.Password,
-					DbName: db.Name,
-				}
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				err = mysqldump.WriteFromRemote(sshC, cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			case profile.DbDockerMaria, profile.DbDockerMysql:
-				log.Info("backing up mysql/mariaDB database that runs in docker", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_mysqldump", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := mysqldump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
-				err = mysqldump.WriteFromSshDocker(sshC, cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			case profile.DbPostgres:
-				log.Info("backing up postgres database", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := pgdump.RemoteCfg{User: db.User, Pw: db.Password, DbName: db.Name}
-				err = pgdump.WriteFromRemote(sshC, cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			case profile.DbDockerPostgres:
-				log.Info("backing up postgres database  that runs in docker", "db", db.Name)
-
-				zipWriter, err := zipHandler.FileWriter(filepath.Join("_postgres", db.Name+".dump.sql"))
-				if err != nil {
-					return err
-				}
-
-				cfg := pgdump.SshDockerCfg{User: db.User, Pw: db.Password, DbName: db.Name, ContainerName: db.ContainerName}
-				err = pgdump.WriteFromSshDocker(sshC, cfg, zipWriter)
-				if err != nil {
-					return err
-				}
-
-			default:
-				return fmt.Errorf("unknown db type: %s", db.Type)
+			err = backupRemoteDatabase(sshC, db, zipHandler, log)
+			if err != nil {
+				return err
 			}
 		}
 	}

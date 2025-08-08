@@ -103,7 +103,7 @@ func GetRemoteBinPath(sshc *ssh.Client) (out string, err error) {
 func (h *RemoteHandler) Run(sshc *ssh.Client, writer io.Writer) (err error) {
 	sess, err := sshc.Session()
 	if err != nil {
-		return fmt.Errorf("unable to create ssh session: %v", err)
+		return fmt.Errorf("unable to create ssh session: %w", err)
 	}
 	defer func() {
 		// we ignore the EOF error on close since it is expected if session was closed by wait()
@@ -114,26 +114,29 @@ func (h *RemoteHandler) Run(sshc *ssh.Client, writer io.Writer) (err error) {
 
 	outPipe, err := sess.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("unable to set stdout pipe, %v", err)
+		return fmt.Errorf("unable to set stdout pipe, %w", err)
 	}
 
 	// Set environment variables for PostgreSQL authentication
 	if h.pw != "" {
-		sess.Setenv("PGPASSWORD", h.pw)
+		err := sess.Setenv("PGPASSWORD", h.pw)
+		if err != nil {
+			return fmt.Errorf("unable to set env var: %w", err)
+		}
 	}
 
 	err = sess.Start(h.Cmd())
 	if err != nil {
-		return fmt.Errorf("unable to start ssh command: %v", err)
+		return fmt.Errorf("unable to start ssh command: %w", err)
 	}
 
 	if _, err := io.Copy(writer, outPipe); err != nil {
-		return fmt.Errorf("error writing output to writer: %v", err)
+		return fmt.Errorf("error writing output to writer: %w", err)
 	}
 
 	err = sess.Wait()
 	if err != nil {
-		return fmt.Errorf("error with ssh command: %v", err)
+		return fmt.Errorf("error with ssh command: %w", err)
 	}
 
 	return nil

@@ -257,7 +257,9 @@ func TestDockerClientMethods(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer h.Close()
+	defer func() {
+		_ = h.Close()
+	}()
 
 	client := h.DockerClient()
 	if client == nil {

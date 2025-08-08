@@ -103,7 +103,10 @@ func readFileInZip(zipFile string, file string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		defer rc.Close()
+		defer func() {
+			_ = rc.Close()
+		}()
+		// #nosec G110 -- test code is controlled
 		_, err = io.Copy(&buf, rc)
 		if err != nil {
 			return "", err
