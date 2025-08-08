@@ -9,6 +9,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	docker "github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type DockerCfg struct {
@@ -111,7 +112,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	execResp, err := h.client.ContainerExecCreate(ctx, h.containerName, container.ExecOptions{
 		Cmd:          append([]string{h.binPath}, args...),
 		AttachStdout: true,
-		AttachStderr: false,
+		AttachStderr: true,
 		Env:          []string{},
 	})
 	if err != nil {
@@ -123,7 +124,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 		execResp, err = h.client.ContainerExecCreate(ctx, h.containerName, container.ExecOptions{
 			Cmd:          append([]string{h.binPath}, args...),
 			AttachStdout: true,
-			AttachStderr: false,
+			AttachStderr: true,
 			Env:          []string{"PGPASSWORD=" + h.pw},
 		})
 		if err != nil {
@@ -138,14 +139,8 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	}
 	defer output.Close()
 
-	// Copy the output, skipping the first 8 bytes which are the Docker protocol header
-	header := make([]byte, 8)
-	_, err = output.Reader.Read(header)
-	if err != nil {
-		return fmt.Errorf("unable to read Docker protocol header: %v", err)
-	}
-
-	_, err = io.Copy(zipWriter, output.Reader)
+	// Use stdcopy to properly demultiplex the stream instead of manually skipping headers
+	_, err = stdcopy.StdCopy(zipWriter, io.Discard, output.Reader)
 	if err != nil {
 		return fmt.Errorf("unable to copy pg_dump output to zip: %v", err)
 	}
@@ -159,6 +154,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	if inspectResp.ExitCode != 0 {
 		return fmt.Errorf("pg_dump failed with exit code %d", inspectResp.ExitCode)
 	}
+
 	return nil
 }
 

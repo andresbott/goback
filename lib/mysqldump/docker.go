@@ -9,6 +9,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	docker "github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 )
 
 type DockerCfg struct {
@@ -111,7 +112,7 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	execResp, err := h.client.ContainerExecCreate(ctx, h.containerName, container.ExecOptions{
 		Cmd:          append([]string{h.binPath}, args...),
 		AttachStdout: true,
-		AttachStderr: false,
+		AttachStderr: true,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to create container exec: %v", err)
@@ -124,14 +125,8 @@ func (h *DockerHandler) Run(ctx context.Context, zipWriter io.Writer) error {
 	}
 	defer output.Close()
 
-	// Copy the output, skipping the first 8 bytes which are the Docker protocol header
-	header := make([]byte, 8)
-	_, err = output.Reader.Read(header)
-	if err != nil {
-		return fmt.Errorf("unable to read Docker protocol header: %v", err)
-	}
-
-	_, err = io.Copy(zipWriter, output.Reader)
+	// Use stdcopy to properly demultiplex the stream instead of manually skipping headers
+	_, err = stdcopy.StdCopy(zipWriter, io.Discard, output.Reader)
 	if err != nil {
 		return fmt.Errorf("unable to copy mysqldump output to zip: %v", err)
 	}
@@ -156,7 +151,7 @@ func GetDockerBinPath(ctx context.Context, dockerClient *docker.Client, containe
 	whichResp, err := dockerClient.ContainerExecCreate(ctx, containerName, container.ExecOptions{
 		Cmd:          []string{"which", "mysqldump"},
 		AttachStdout: true,
-		AttachStderr: false,
+		AttachStderr: true,
 	})
 	if err != nil {
 		return output, fmt.Errorf("unable to create which command exec: %v", err)
@@ -168,14 +163,9 @@ func GetDockerBinPath(ctx context.Context, dockerClient *docker.Client, containe
 	}
 	defer whichOutput.Close()
 
-	// Read the output to get the mysqldump path
-	header := make([]byte, 8)
-	_, err = whichOutput.Reader.Read(header)
-	if err != nil {
-		return output, fmt.Errorf("unable to read Docker protocol header: %v", err)
-	}
-
-	pathBytes, err := io.ReadAll(whichOutput.Reader)
+	// Use stdcopy to properly read the output
+	var outBuf strings.Builder
+	_, err = stdcopy.StdCopy(&outBuf, io.Discard, whichOutput.Reader)
 	if err != nil {
 		return output, fmt.Errorf("unable to read which command output: %v", err)
 	}
@@ -186,10 +176,9 @@ func GetDockerBinPath(ctx context.Context, dockerClient *docker.Client, containe
 		return output, fmt.Errorf("unable to inspect which command exec: %v", err)
 	}
 
-	if whichInspect.ExitCode == 0 && len(pathBytes) > 0 {
+	if whichInspect.ExitCode == 0 && outBuf.Len() > 0 {
 		// Use the found path, trim whitespace
-		output = string(pathBytes)
-		output = strings.TrimSpace(output)
+		output = strings.TrimSpace(outBuf.String())
 	}
 	return output, nil
 }
