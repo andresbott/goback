@@ -67,7 +67,7 @@ check-branch:
 	fi
 
 release: check_env check-branch check-git-clean verify ## release a new version, call with version="v1.2.3", make sure to have valid GH token
-	@[ "${version}" ] || ( echo ">> version is not set, mausage: make release version=\"v1.2.3\" "; exit 1 )
+	@[ "${version}" ] || ( echo ">> version is not set, usage: make release version=\"v1.2.3\" "; exit 1 )
 	@git tag -d $(version) || true
 	@git tag -a $(version) -m "Release version: $(version)"
 	@git push --delete origin $(version) || true

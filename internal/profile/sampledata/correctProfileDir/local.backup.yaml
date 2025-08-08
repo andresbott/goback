@@ -16,6 +16,12 @@ dbs:
     user: user
     password: pw
 
+  - name: dockerPG
+    type: dockerPostgres
+    user: user_pg
+    password: pw_pg
+    containerName: "container"
+
 destination:
   path:   "/backups"
   keep: 3

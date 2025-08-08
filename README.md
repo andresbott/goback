@@ -87,9 +87,10 @@ dirs:
 
 * _dbs_: list of databases to backup.
   * _dbname_: database name
-  * _type_: database type, at the moment only mysql is supported.
+  * _type_: database type, at the moment only mysql is supported, either directly or connecting to a docker container.
   * _user_: database user to login to the db. Leave empty to let the tool try to get access.
   * _password_: database user to login to the db. Leave empty to let the tool try to get access.
+  * _containerName_: the docker container name to run the db dump on
 
 >Note: goback will try to get root credentials for mysql from common locations like /etc/my.cnf a d fallback 
 > to socket login
@@ -104,6 +105,7 @@ dbs:
     type: mysql
     user: user
     password: pw
+    containerName: container
 ```
 
 **ssh:**
