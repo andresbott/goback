@@ -76,12 +76,13 @@ type Destination struct {
 }
 
 type EmailNotify struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	From     string
-	To       []string
+	Host      string
+	Port      string
+	User      string
+	Password  string
+	From      string
+	To        []string
+	OnSuccess bool `yaml:"onSuccess"`
 }
 
 // HasValues check if all the notification fields are of type default zero

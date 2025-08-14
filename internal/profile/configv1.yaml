@@ -71,7 +71,9 @@ destination:
 
 # notify per email if a profile was successful or not, every profile can setup an independent notification;
 # this is useful if you want to notify other users that a backup completed.
+# an notification will always be sent on error, set onSuccess to true to also get a notification in case of success.
 notify:
+  onSuccess: false
   host: smtp.mail.com
   port: 587
   user: mail@mail.com
