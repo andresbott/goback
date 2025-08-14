@@ -123,7 +123,7 @@ func RunWithNotify(prfl profile.Profile, log *slog.Logger, fn func(prfl profile.
 		}
 		return err
 	}
-	if prfl.Notify.HasValues() {
+	if prfl.Notify.HasValues() && prfl.Notify.OnSuccess {
 		err2 := NotifySuccess(prfl.Notify, prfl.Name)
 		if err2 != nil {
 			log.Error("Error while sending notification", "err", err2)
